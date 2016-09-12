@@ -1,0 +1,7 @@
+{application, redbug,
+ [
+  {description, "Erlang Tracing Debugger"},
+  {vsn, "0.97.2"},
+  {registered, []},
+  {applications, [kernel,stdlib,runtime_tools]}
+ ]}.
