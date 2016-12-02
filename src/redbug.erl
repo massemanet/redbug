@@ -21,7 +21,7 @@
 %% most can be set in the input proplist
 -record(cnf,{
           %% general
-          time         = 15000,          % stop trace after this time [ms]
+          time         = 15000,        % stop trace after this time [ms]
           msgs         = 10,           % stop trace after this # msgs [unit]
           target       = node(),       % target node
           cookie       = '',           % target node cookie
@@ -93,6 +93,7 @@ help() ->
      , "time         (15000)       stop trace after this many ms"
      , "msgs         (10)          stop trace after this many msgs"
      , "target       (node())      node to trace on"
+     , "cookie       (host cookie) target node cookie"
      , "blocking     (false)       block start/2, return a list of messages"
      , "arity        (false)       print arity instead of arg list"
      , "buffered     (false)       buffer messages till end of trace"
@@ -127,7 +128,7 @@ unix([Node,Trc,Time])           -> unix([Node,Trc,Time,"10"]);
 unix([Node,Trc,Time,Msgs])      -> unix([Node,Trc,Time,Msgs,"all"]);
 unix([Node,Trc,Time,Msgs,Proc]) ->
   try
-    Cnf = #cnf{time = to_int(Time),
+    Cnf = #cnf{time      = to_int(Time),
                msgs      = to_int(Msgs),
                trc       = try to_term(Trc) catch _:_ -> Trc end,
                procs     = [to_atom(Proc)],
