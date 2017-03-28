@@ -382,11 +382,11 @@ mk_outer(#cnf{print_depth=Depth,print_msec=MS,print_return=Ret} = Cnf) ->
             end,
           {Count,Time} = lists:foldl(PerProc,{0,0},PerProcCT),
           [OutFun("~n% ~6s : ~6s : ~w:~w/~w",
-                  [prf:human(Count),prf:human(Time),M,F,A]) || 0 < Count];
+                  [human(Count),human(Time),M,F,A]) || 0 < Count];
         {'call_count',{_,false}} ->
           ok;
         {'call_count',{{M,F,A},Count}} ->
-          [OutFun("~n% ~6s : ~w:~w/~w", [prf:human(Count),M,F,A]) || 0 < Count];
+          [OutFun("~n% ~6s : ~w:~w/~w", [human(Count),M,F,A]) || 0 < Count];
         {'call',{{M,F,A},Bin}} ->
           case Cnf#cnf.print_calls of
             true ->
@@ -449,10 +449,6 @@ ts({H,M,S,_Us}) ->
   flat("~2.2.0w:~2.2.0w:~2.2.0w",[H,M,S]).
 ts_ms({H,M,S,Us}) ->
   flat("~2.2.0w:~2.2.0w:~2.2.0w.~3.3.0w",[H,M,S,Us div 1000]).
-
-flat(Form,List) ->
-  lists:flatten(io_lib:fwrite(Form,List)).
-
 
 %%% call stack handler
 stak(Bin) ->
@@ -566,3 +562,25 @@ print_loop(PrintFun,Acc) ->
     {'DOWN',_,_,_,R} -> exit({R,Acc});
     X                -> print_loop(PrintFun,lists:foldl(PrintFun,Acc,X))
   end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%make ints human readable
+
+human(X) when not is_number(X) -> X;
+human(I) when I < 0 -> "-"++human(-I);
+human(I) when 0 < I ->
+  case math:log10(I) of
+    M when 15=<M -> human(M-15,"P");
+    M when 12=<M -> human(M-12,"T");
+    M when  9=<M -> human(M-9,"G");
+    M when  6=<M -> human(M-6,"M");
+    M when  3=<M -> human(M-3,"k");
+    _            -> flat("~w",[I])
+  end;
+human(_) -> "0".
+
+human(E,M) ->
+  flat("~.1f~s",[math:pow(10,E),M]).
+
+flat(Format,Args) ->
+  lists:flatten(io_lib:fwrite(Format,Args)).
