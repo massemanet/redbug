@@ -240,7 +240,7 @@ consumer({file,File,Size,Count},Cnf) -> consumer_file(File,Size,Count,Cnf);
 consumer({ip,Port,Queue},Cnf)        -> consumer_ip(Port,Queue,Cnf).
 
 consumer_pid({Pid,Cnt,MaxQueue,MaxSize},Buf,Cnf) ->
-  Cnf =
+  C =
     dict:from_list(
       [{daddy,self()},
        {count,Cnt},
@@ -250,10 +250,10 @@ consumer_pid({Pid,Cnt,MaxQueue,MaxSize},Buf,Cnf) ->
        {rtps,dict:fetch(rtps,Cnf)},
        {where,Pid},
        {buffering,Buf}]),
-  spawn_link(fun() -> init_local_pid(Cnf) end).
+  spawn_link(fun() -> init_local_pid(C) end).
 
 consumer_file(File,Size,WrapCount,Cnf) ->
-  Cnf =
+  C =
     dict:from_list(
       [{style,file}
        , {file,File}
@@ -261,17 +261,17 @@ consumer_file(File,Size,WrapCount,Cnf) ->
        , {wrap_count,WrapCount}
        , {time,dict:fetch(time,Cnf)}
        , {daddy, self()}]),
-  spawn_link(fun() -> init_local_port(Cnf) end).
+  spawn_link(fun() -> init_local_port(C) end).
 
 consumer_ip(Port,QueueSize,Cnf) ->
-  Cnf =
+  C =
     dict:from_list(
       [{style,ip}
        , {port_no,Port}
        , {queue_size,QueueSize}
        , {time,dict:fetch(time,Cnf)}
        , {daddy, self()}]),
-  spawn_link(fun() -> init_local_port(Cnf) end).
+  spawn_link(fun() -> init_local_port(C) end).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%  local consumer process for port-style tracing.

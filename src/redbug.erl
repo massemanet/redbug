@@ -249,7 +249,7 @@ findex(Tag,[Tag|_])  -> 1;
 findex(Tag,[_|Tags]) -> findex(Tag,Tags)+1.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the main redbug process
-%%% a state machine. init, starting, running, stopping, maybe_stopping.
+%%% a state machine. init, starting, running, stopping, wait_for_trc.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 init(Cnf) ->
   process_flag(trap_exit,true),
@@ -279,7 +279,8 @@ starting(Cnf = #cnf{print_pid=PrintPid}) ->
 
 running(Cnf = #cnf{trc_pid=TrcPid,print_pid=PrintPid}) ->
   receive
-    stop                                 -> TrcPid ! stop,stopping(Cnf);
+    stop                                 -> TrcPid ! stop,
+                                            stopping(Cnf);
     {redbug_targ,{stopping,_,_}}         -> stopping(Cnf);
     {'EXIT',TrcPid,R}                    -> ?log({trace_control_died,R}),
                                             stopping(Cnf);
@@ -301,10 +302,6 @@ stopping(Cnf = #cnf{print_pid=PrintPid}) ->
     X                   -> ?log([{unknown_message,X}])
   end.
 
-run(Cnf,P,F) ->
-  Cnf#cnf.print_pid ! {trace_consumer,Cnf#cnf.cons_pid},
-  [Cnf#cnf.shell_pid ! {running,P,F} || is_pid(Cnf#cnf.shell_pid)].
-
 done(#cnf{blocking=false},{Reason,Answer}) ->
   io:fwrite("~s",[done_string(Reason)]),
   io:fwrite("redbug done, ~p - ~p~n",[Reason,Answer]);
@@ -324,7 +321,14 @@ done_string(Reason) ->
     _ ->
       ""
   end.
+
+run(Cnf,P,F) ->
+  Cnf#cnf.print_pid ! {trace_consumer,Cnf#cnf.cons_pid},
+  [Cnf#cnf.shell_pid ! {running,P,F} || is_pid(Cnf#cnf.shell_pid)],
+  Cnf.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 do_start(OCnf) ->
   Cnf = spawn_printer(wrap_print_fun(OCnf),maybe_new_target(OCnf)),
   Cnf#cnf{trc_pid=redbug_targ:start(Cnf#cnf.target,pack(Cnf))}.
