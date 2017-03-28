@@ -17,6 +17,7 @@ test: compile xref eunit dialyze
 
 eunit: all
 	ERL_FLAGS="-sname eunit" $(REBAR) eunit
+	@$(REBAR) cover
 
 xref: all
 	@$(REBAR) xref

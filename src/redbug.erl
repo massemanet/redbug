@@ -9,9 +9,6 @@
 -module(redbug).
 
 -export([help/0]).
-% start from the unix shell
--export([unix/1]).
-% start from erlang shell
 -export([start/1,start/2,start/3,start/4,start/5]).
 -export([stop/0]).
 
@@ -121,49 +118,6 @@ help() ->
   lists:foreach(fun(S)->io:fwrite(standard_io,"~s~n",[S])end,Text).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% start from unix shell (e.g. the bin/redbug script)
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-unix([Node,Trc])                -> unix([Node,Trc,"15000"]);
-unix([Node,Trc,Time])           -> unix([Node,Trc,Time,"10"]);
-unix([Node,Trc,Time,Msgs])      -> unix([Node,Trc,Time,Msgs,"all"]);
-unix([Node,Trc,Time,Msgs,Proc]) ->
-  try
-    Cnf = #cnf{time      = to_int(Time),
-               msgs      = to_int(Msgs),
-               trc       = try to_term(Trc) catch _:_ -> Trc end,
-               procs     = [to_atom(Proc)],
-               target    = to_atom(Node),
-               print_fun = mk_outer(#cnf{})},
-    init(Cnf),
-    maybe_halt(0)
-  catch
-    C:R ->
-      io:fwrite("~p~n",[{C,R,erlang:get_stacktrace()}]),
-      maybe_halt(1)
-  end;
-unix(X) ->
-  io:fwrite("bad args: ~p~n",[X]),
-  maybe_halt(1).
-
-to_term("_") -> '_';
-to_term(Str) ->
-  {done, {ok, Toks, 1}, []} = erl_scan:tokens([], "["++Str++"]. ", 1),
-  case erl_parse:parse_term(Toks) of
-    {ok, [Term]} -> Term;
-    {ok, L} when is_list(L) -> L
-  end.
-
-maybe_halt(Status) ->
-  case is_in_shell() of
-    true -> ok;
-    false-> erlang:halt(Status)
-  end.
-
-is_in_shell() ->
-  {_,{x,S}} = (catch erlang:error(x)),
-  element(1,hd(lists:reverse(S))) == shell.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API from erlang shell
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 stop() ->
@@ -268,32 +222,30 @@ init(Cnf) ->
 
 starting(Cnf = #cnf{print_pid=PrintPid}) ->
   receive
-    stop                              -> Cnf#cnf.trc_pid ! stop;
-    {redbug_targ,{starting,P,F,C}}    -> running(run(Cnf#cnf{cons_pid=C},P,F));
-    {'EXIT',_,{redbug_targ,R}}        -> throw(R);
-    {redbug_targ,{already_started,_}} -> ?log(already_started);
-    {'EXIT',PrintPid,R}               -> ?log([printer_died,{reason,R}]);
-    {'EXIT',R}                        -> ?log([exited,{reason,R}]);
-    X                                 -> ?log([{unknown_message,X}])
+    stop                           -> Cnf#cnf.trc_pid ! stop;
+    {redbug_targ,{starting,P,F,C}} -> running(run(Cnf#cnf{cons_pid=C},P,F));
+    {'EXIT',_,{redbug_targ,R}}     -> throw(R);
+    {'EXIT',PrintPid,R}            -> ?log([printer_died,{reason,R}]);
+    {'EXIT',R}                     -> ?log([exited,{reason,R}]);
+    X                              -> ?log([{unknown_message,X}])
   end.
 
 running(Cnf = #cnf{trc_pid=TrcPid,print_pid=PrintPid}) ->
   receive
-    stop                                 -> TrcPid ! stop,
-                                            stopping(Cnf);
-    {redbug_targ,{stopping,_,_}}         -> stopping(Cnf);
-    {'EXIT',TrcPid,R}                    -> ?log({trace_control_died,R}),
-                                            stopping(Cnf);
-    {redbug_targ,{not_started,R,TrcPid}} -> ?log([{not_started,R}]);
-    {'EXIT',PrintPid,R}                  -> wait_for_trc(Cnf,R);
-    X                                    -> ?log([{unknown_message,X}])
+    stop                       -> TrcPid ! stop,
+                                  stopping(Cnf);
+    {redbug_targ,{stopping,_}} -> stopping(Cnf);
+    {'EXIT',TrcPid,R}          -> ?log({trace_control_died,R}),
+                                  stopping(Cnf);
+    {'EXIT',PrintPid,R}        -> wait_for_trc(Cnf,R);
+    X                          -> ?log([{unknown_message,X}])
   end.
 
 wait_for_trc(Cnf = #cnf{trc_pid=TrcPid},R) ->
   receive
-    {redbug_targ,{stopping,_,_}} -> done(Cnf,R);
-    {'EXIT',TrcPid,R}       -> ?log({trace_control_died,R});
-    X                       -> ?log({unknown_message,X})
+    {redbug_targ,{stopping,_}} -> done(Cnf,R);
+    {'EXIT',TrcPid,R}          -> ?log({trace_control_died,R});
+    X                          -> ?log({unknown_message,X})
   end.
 
 stopping(Cnf = #cnf{print_pid=PrintPid}) ->
@@ -338,6 +290,8 @@ maybe_new_target(Cnf = #cnf{target=Target}) ->
     true -> Cnf;
     false-> Cnf#cnf{target=to_atom(Str++"@"++element(2,inet:gethostname()))}
   end.
+
+to_atom(L) -> list_to_atom(L).
 
 spawn_printer(PrintFun,Cnf) ->
   Cnf#cnf{print_pid=spawn_link(fun() -> print_init(PrintFun) end)}.
@@ -400,10 +354,10 @@ mk_outer(#cnf{print_depth=Depth,print_msec=MS,print_return=Ret} = Cnf) ->
               ok
           end;
         {'retn',{{M,F,A},Val0}} ->
-	  Val = case Ret of
-	          true  -> Val0;
-		  false -> '...'
-		end,
+          Val = case Ret of
+                  true  -> Val0;
+                  false -> '...'
+                end,
           OutFun("~n% ~s ~s~n% ~p:~p/~p -> ~P",
                  [MTS,to_str(PI),M,F,A,Val,Depth]);
         {'send',{MSG,ToPI}} ->
@@ -543,8 +497,6 @@ slist(S) when ?is_string(S) -> [S];
 slist(L) when is_list(L) -> lists:usort(L);
 slist(X) -> [X].
 
-to_int(L) -> list_to_integer(L).
-to_atom(L) -> list_to_atom(L).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the print_loop process
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -72,20 +72,20 @@ init(Cnf) ->
   process_flag(trap_exit,true),
   active(start_trace(Cnf)).
 
-active(LD) ->
-  Cons = dict:fetch(consumer,LD),
-  HostPid = dict:fetch(host_pid,LD),
+active(Cnf) ->
+  Cons = dict:fetch(consumer,Cnf),
+  HostPid = dict:fetch(host_pid,Cnf),
   receive
-    stop                -> remote_stop(LD);
-    {'EXIT',HostPid,_}  -> remote_stop(LD);
-    {local_stop,R}      -> local_stop(HostPid,LD,R);
-    {'EXIT',Cons,R}     -> local_stop(HostPid,LD,R);
-    X                   -> ?log({weird_in,X}),active(LD)
+    stop                -> remote_stop(Cons,Cnf);
+    {'EXIT',HostPid,_}  -> remote_stop(Cons,Cnf);
+    {local_stop,R}      -> local_stop(HostPid,Cnf,R);
+    {'EXIT',Cons,R}     -> local_stop(HostPid,Cnf,R);
+    X                   -> ?log({weird_in,X}),active(Cnf)
   end.
 
-local_stop(HostPid,LD,R) ->
-  stop_trace(LD),
-  HostPid ! {?MODULE,{stopping,self(),R}}.
+local_stop(HostPid,Cnf,R) ->
+  stop_trace(Cnf),
+  HostPid ! {?MODULE,{stopping,R}}.
 
 remote_stop(Consumer,Cnf) ->
   Consumer ! stop,
