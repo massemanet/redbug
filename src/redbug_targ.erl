@@ -87,8 +87,9 @@ local_stop(HostPid,LD,R) ->
   stop_trace(LD),
   HostPid ! {?MODULE,{stopping,self(),R}}.
 
-remote_stop(LD) ->
-  stop_trace(LD).
+remote_stop(Consumer,Cnf) ->
+  Consumer ! stop,
+  stop_trace(Cnf).
 
 stop_trace(Cnf) ->
   erlang:trace(all,false,dict:fetch(flags,Cnf)),
