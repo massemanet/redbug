@@ -1,10 +1,12 @@
 {application, redbug,
- [
-  {description, "Erlang Tracing Debugger"},
+ [{description, "Erlang Tracing Debugger"},
   {vsn, "0.97.2"},
   {registered, []},
   {applications,
    [kernel,
     stdlib,
-    runtime_tools]}
+    runtime_tools]},
+  {maintainers, ["Mats Cronqvist"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/massemanet/redbug"}]}
  ]}.
