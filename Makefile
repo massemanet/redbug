@@ -35,3 +35,6 @@ release_patch: test
 	./bin/release.sh patch
 
 release: relase_patch
+
+publish:
+	@$(REBAR) hex publish
