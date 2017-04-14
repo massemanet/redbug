@@ -1,109 +1,103 @@
 %%% -*- erlang-indent-level: 2 -*-
 %%%-------------------------------------------------------------------
-%%% File    : prfTrc.erl
+%%% File    : redbug_targ.erl
 %%% Author  : Mats Cronqvist <locmacr@mwlx084>
 %%% Description :
 %%%
 %%% Created : 18 Jan 2007 by Mats Cronqvist <locmacr@mwlx084>
 %%%-------------------------------------------------------------------
--module(prfTrc).
+-module(redbug_targ).
 
--export([collect/1,config/2]).
-%% internal
--export([active/1,idle/0,wait_for_local/1]).
-
-%% states
--define(ACTIVE         , ?MODULE:active).
--define(IDLE           , ?MODULE:idle).
--define(WAIT_FOR_LOCAL , ?MODULE:wait_for_local).
+-export([start/2]).
 
 -include("log.hrl").
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% runs in the prfTarg process
+%%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+start(Node, Cnf) ->
+  assert_loaded(Node),
+  do_start(Node,dict:store(host_pid,self(),Cnf)).
 
-collect(LD) -> {LD, {?MODULE, {tick,prfTime:ts()}}}.
+assert_loaded(Node) ->
+  lists:foreach(fun(M) -> ass_loaded(Node,M) end,[?MODULE]).
 
-config(LD,{start,Conf}) -> start(Conf),LD;
-config(LD,{stop,Args}) -> stop(Args),LD;
-config(LD,Data) -> ?log([unknown,{data,Data}]), LD.
+ass_loaded(nonode@nohost,Mod) -> {module,Mod}=c:l(Mod);
+ass_loaded(Node,Mod) ->
+  case rpc:call(Node,Mod,module_info,[compile]) of
+    {badrpc,{'EXIT',{undef,_}}} ->              %no code
+      netload(Node,Mod),
+      ass_loaded(Node,Mod);
+    {badrpc,_} ->
+      ok;
+    CompInfo when is_list(CompInfo) ->
+      case {ftime(CompInfo),ftime(Mod:module_info(compile))} of
+        {interpreted,_} ->
+          ok;
+        {TargT,HostT} when TargT < HostT -> %old code on target
+          netload(Node,Mod),
+          ass_loaded(Node,Mod);
+        _ ->
+          ok
+      end
+  end.
 
-start(Conf) ->
-  assert(prfTrc) ! {start, Conf}.
+netload(Node,Mod) ->
+  {Mod,Bin,Fname} = code:get_object_code(Mod),
+  {module,Mod} = rpc:call(Node,code,load_binary,[Mod,Fname,Bin]).
 
-stop(Args) ->
-  assert(prfTrc) ! {stop,Args}.
+ftime([]) -> interpreted;
+ftime([{time,T}|_]) -> T;
+ftime([_|T]) -> ftime(T).
 
-assert(Reg) ->
-  case whereis(Reg) of
-    Pid when is_pid(Pid) -> Pid;
-    undefined            -> register(Reg,Pid=spawn_link(fun init/0)),
-                            Pid
+do_start(nonode@nohost,Cnf) ->
+  spawn_link(fun() -> init(Cnf) end);
+do_start(Node,Cnf) ->
+  case net_adm:ping(Node) of
+    pang->
+      exit(node_down);
+    pong ->
+      spawn_link(Node,fun() -> init(Cnf) end)
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% trace control process
-%%% LD = idle | {host_pid,timer,consumer,conf}
-%%% Conf = {time,flags,rtps,procs,where}
+%%% LD = idle | {host_pid,timer,consumer,cnf}
+%%% Cnf = {time,flags,rtps,procs,where}
 %%% Where = {term_buffer,{Pid,Count,MaxQueue,MaxSize}} |
 %%%         {term_stream,{Pid,Count,MaxQueue,MaxSize}} |
 %%%         {term_discard,{Pid,Count,MaxQueue,MaxSize}} |
 %%%         {file,File,Size,Count} |
 %%%         {ip,Port,Queue}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-init() ->
+init(Cnf) ->
   process_flag(trap_exit,true),
-  ?IDLE().
+  active(start_trace(Cnf)).
 
-idle() ->
+active(Cnf) ->
+  Cons = dict:fetch(consumer,Cnf),
+  HostPid = dict:fetch(host_pid,Cnf),
   receive
-    {start,{HostPid,Conf}} -> link(HostPid),
-                              ?ACTIVE(start_trace(HostPid,Conf));
-    {stop,{HostPid,_}}     -> HostPid ! {prfTrc,{not_started,idle,self()}},
-                              ?IDLE();
-    {'EXIT',_,normal}      -> ?IDLE();
-    X                      -> ?log({weird_in,X}), ?IDLE()
+    stop                -> remote_stop(Cons,Cnf);
+    {'EXIT',HostPid,_}  -> remote_stop(Cons,Cnf);
+    {local_stop,R}      -> local_stop(HostPid,Cnf,R);
+    {'EXIT',Cons,R}     -> local_stop(HostPid,Cnf,R);
+    X                   -> ?log({weird_in,X}),active(Cnf)
   end.
 
-active({not_started,R,HostPid}) ->
-  HostPid ! {prfTrc,{not_started,R,self()}},
-  ?IDLE();
-active(LD) ->
-  Cons = dict:fetch(consumer,LD),
-  HostPid = dict:fetch(host_pid,LD),
-  receive
-    {start,{Pid,_}}     -> Pid ! {prfTrc,{already_started,self()}},?ACTIVE(LD);
-    {stop,_}            -> remote_stop(Cons,LD),?WAIT_FOR_LOCAL(Cons);
-    {'EXIT',HostPid,_}  -> remote_stop(Cons,LD),?WAIT_FOR_LOCAL(Cons);
-    {local_stop,R}      -> local_stop(HostPid,LD,R),?WAIT_FOR_LOCAL(Cons);
-    {'EXIT',Cons,R}     -> local_stop(HostPid,LD,R),?IDLE();
-    X                   -> ?log({weird_in,X}), ?ACTIVE(LD)
-  end.
+local_stop(HostPid,Cnf,R) ->
+  stop_trace(Cnf),
+  HostPid ! {?MODULE,{stopping,R}}.
 
-wait_for_local(Consumer) when is_pid(Consumer) ->
-  receive
-    {'EXIT',Consumer,_} -> ?IDLE();
-    X                   -> ?log({weird_in,X}), ?WAIT_FOR_LOCAL(Consumer)
-  end.
+remote_stop(Consumer,Cnf) ->
+  Consumer ! stop,
+  stop_trace(Cnf).
 
-local_stop(HostPid, LD, R) ->
-  stop_trace(LD),
-  unlink(HostPid),
-  HostPid ! {prfTrc,{stopping,self(),R}}.
-
-remote_stop(Consumer, LD) ->
-  stop_trace(LD),
-  consumer_stop(Consumer).
-
-stop_trace(LD) ->
-  erlang:trace(all,false,dict:fetch(flags,dict:fetch(conf,LD))),
+stop_trace(Cnf) ->
+  erlang:trace(all,false,dict:fetch(flags,Cnf)),
   unset_tps().
 
-start_trace(HostPid,Conf) ->
-  Rtps = expand_underscores(maybe_load_rtps(dict:fetch(rtps,Conf))),
-  start_trace(
-    dict:from_list([{host_pid,HostPid},
-                    {conf,dict:store(rtps,Rtps,Conf)}])).
+start_trace(Cnf) ->
+  Rtps = expand_underscores(maybe_load_rtps(dict:fetch(rtps,Cnf))),
+  do_start_trace(dict:store(rtps,Rtps,Cnf)).
 
 expand_underscores(Rtps) ->
   lists:foldl(fun expand_underscore/2,[],Rtps).
@@ -162,19 +156,18 @@ maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
     _:_ -> O
   end.
 
-start_trace(LD) ->
-  Conf = dict:fetch(conf,LD),
-  Consumer = consumer(dict:fetch(where,Conf),Conf),
-  Ps = lists:foldl(fun mk_prc/2,[],dict:fetch(procs,Conf)),
-  Rtps = dict:fetch(rtps,Conf),
-  Flags = [{tracer,real_consumer(Consumer)}|dict:fetch(flags,Conf)],
+do_start_trace(Cnf) ->
+  Consumer = consumer(dict:fetch(where,Cnf),Cnf),
+  Ps = lists:foldl(fun mk_prc/2,[],dict:fetch(procs,Cnf)),
+  Rtps = dict:fetch(rtps,Cnf),
+  Flags = [{tracer,real_consumer(Consumer)}|dict:fetch(flags,Cnf)],
   unset_tps(),
   NoProcs = lists:sum([erlang:trace(P,true,Flags) || P <- Ps]),
-  untrace(family(redbug)++family(prfTrc),Flags),
+  untrace(family(redbug)++family(?MODULE),Flags),
   NoFuncs = set_tps(Rtps),
   assert_trace_targets(NoProcs,NoFuncs,Flags,Ps),
-  dict:fetch(host_pid,LD) ! {prfTrc,{starting,NoProcs,NoFuncs,self(),Consumer}},
-  dict:store(consumer,Consumer,LD).
+  dict:fetch(host_pid,Cnf) ! {?MODULE,{starting,NoProcs,NoFuncs,Consumer}},
+  dict:store(consumer,Consumer,Cnf).
 
 family(Daddy) ->
   try D = whereis(Daddy),
@@ -193,11 +186,11 @@ untrace(Pids,Flags) ->
 assert_trace_targets(NoProcs,NoFuncs,Flags,Ps) ->
   case 0 < NoProcs orelse is_new_pidspec(Ps) of
     true -> ok;
-    false-> exit({prfTrc,no_matching_processes})
+    false-> exit({?MODULE,no_matching_processes})
   end,
   case 0 < NoFuncs orelse is_message_trace(Flags) of
     true -> ok;
-    false-> exit({prfTrc,no_matching_functions})
+    false-> exit({?MODULE,no_matching_functions})
   end.
 
 is_new_pidspec(Ps) ->
@@ -241,47 +234,45 @@ real_consumer(C) ->
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-consumer({term_discard,Term},Conf)    -> consumer_pid(Term,discard,Conf);
-consumer({term_buffer,Term},Conf)     -> consumer_pid(Term,yes,Conf);
-consumer({term_stream,Term},Conf)     -> consumer_pid(Term,no,Conf);
-consumer({file,File,Size,Count},Conf) -> consumer_file(File,Size,Count,Conf);
-consumer({ip,Port,Queue},Conf)        -> consumer_ip(Port,Queue,Conf).
+consumer({term_discard,Term},Cnf)    -> consumer_pid(Term,discard,Cnf);
+consumer({term_buffer,Term},Cnf)     -> consumer_pid(Term,yes,Cnf);
+consumer({term_stream,Term},Cnf)     -> consumer_pid(Term,no,Cnf);
+consumer({file,File,Size,Count},Cnf) -> consumer_file(File,Size,Count,Cnf);
+consumer({ip,Port,Queue},Cnf)        -> consumer_ip(Port,Queue,Cnf).
 
-consumer_stop(Pid) -> Pid ! stop.
-
-consumer_pid({Pid,Cnt,MaxQueue,MaxSize},Buf,Conf) ->
-  Cnf =
+consumer_pid({Pid,Cnt,MaxQueue,MaxSize},Buf,Cnf) ->
+  C =
     dict:from_list(
       [{daddy,self()},
        {count,Cnt},
-       {time,dict:fetch(time,Conf)},
+       {time,dict:fetch(time,Cnf)},
        {maxsize,MaxSize},
        {maxqueue,MaxQueue},
-       {rtps,dict:fetch(rtps,Conf)},
+       {rtps,dict:fetch(rtps,Cnf)},
        {where,Pid},
        {buffering,Buf}]),
-  spawn_link(fun() -> init_local_pid(Cnf) end).
+  spawn_link(fun() -> init_local_pid(C) end).
 
-consumer_file(File,Size,WrapCount,Conf) ->
-  Cnf =
+consumer_file(File,Size,WrapCount,Cnf) ->
+  C =
     dict:from_list(
       [{style,file}
        , {file,File}
        , {size,Size}
        , {wrap_count,WrapCount}
-       , {time,dict:fetch(time,Conf)}
+       , {time,dict:fetch(time,Cnf)}
        , {daddy, self()}]),
-  spawn_link(fun() -> init_local_port(Cnf) end).
+  spawn_link(fun() -> init_local_port(C) end).
 
-consumer_ip(Port,QueueSize,Conf) ->
-  Cnf =
+consumer_ip(Port,QueueSize,Cnf) ->
+  C =
     dict:from_list(
       [{style,ip}
        , {port_no,Port}
        , {queue_size,QueueSize}
-       , {time,dict:fetch(time,Conf)}
+       , {time,dict:fetch(time,Cnf)}
        , {daddy, self()}]),
-  spawn_link(fun() -> init_local_port(Cnf) end).
+  spawn_link(fun() -> init_local_port(C) end).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%  local consumer process for port-style tracing.
@@ -423,7 +414,7 @@ flush_time_count({MFA,_MatchSpec,Flags},Where) ->
   Where ! lists:foldl(fun(Flag,A)-> time_count(MFA,Flag,A) end,[],Flags).
 
 time_count(MFA,Flag,A) when Flag == call_count; Flag == call_time ->
-  [{Flag,{MFA,element(2,erlang:trace_info(MFA,Flag))},[],ts(prfTime:ts())}|A];
+  [{Flag,{MFA,element(2,erlang:trace_info(MFA,Flag))},[],ts(ts())}|A];
 time_count(_,_,A) ->
   A.
 
@@ -458,3 +449,9 @@ pi({R,Node}) when is_atom(R), is_atom(Node) -> {R,Node}.
 ts(Nw) ->
   {_,{H,M,S}} = calendar:now_to_local_time(Nw),
   {H,M,S,element(3,Nw)}.
+
+-ifdef(USE_NOW).
+ts() -> erlang:now().
+-else.
+ts() -> erlang:timestamp().
+-endif.

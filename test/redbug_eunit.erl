@@ -7,7 +7,6 @@
 -module('redbug_eunit').
 -author('mats cronqvist').
 
--ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
 t_0_test() ->
@@ -40,7 +39,8 @@ t_01_test() ->
 
 t_1_test() ->
   Filename = "redbug.txt",
-  {_,_} = redbug:start("lists:sort->return",[{print_file,Filename},buffered,debug]),
+  {_,_} = redbug:start("lists:sort->return",
+                       [{print_file,Filename},buffered,debug]),
   [1,2,3] = lists:sort([3,2,1]),
   timer:sleep(100),
   redbug:stop(),
@@ -95,7 +95,8 @@ t_4_test() ->
 
 t_5_test() ->
   Filename = "redbug.txt",
-  {_,_} = redbug:start("lists:sort->time",[{print_file,Filename},{time,999},debug]),
+  {_,_} = redbug:start("lists:sort->time",
+                       [{print_file,Filename},{time,999},debug]),
   [1,2,3] = lists:sort([3,2,1]),
   timer:sleep(1100),
   maybe_show(Filename),
@@ -107,7 +108,8 @@ t_5_test() ->
 
 t_6_test() ->
   Filename = "redbug.txt",
-  {_,_} = redbug:start("lists:sort->count",[{print_file,Filename},{time,999},debug]),
+  {_,_} = redbug:start("lists:sort->count",
+                       [{print_file,Filename},{time,999},debug]),
   [1,2,3] = lists:sort([3,2,1]),
   timer:sleep(1100),
   maybe_show(Filename),
@@ -131,7 +133,8 @@ t_8_test() ->
   ?assertEqual(sort,
                e(2,e(4,e(1,Msgs)))),
   ?assertEqual(sort,
-               e(2,e(4,e(2,Msgs)))).
+               e(2,e(4,e(2,Msgs)))),
+  maybe_delete("foo0.trc").
 
 t_9_test() ->
   Filename = "redbug.txt",
@@ -176,12 +179,12 @@ in_shell() ->
 
 stack() ->
   stack(self()).
+
 stack(P) ->
   [string:strip(e(2,(string:tokens(L,"(+)")))) || L<- bt(P),$0 =:= hd(L)].
+
 bt(P) ->
   string:tokens(binary_to_list(e(2,(process_info(P,backtrace)))),"\n").
 
 e(N,L) when is_list(L) -> lists:nth(N,L);
 e(N,T) when is_tuple(T)-> element(N,T).
-
--endif.

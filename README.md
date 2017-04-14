@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/massemanet/redbug.svg?branch=master)](https://travis-ci.org/massemanet/redbug)
 NAME
 
 redbug - restricted debugging utility
