@@ -1,0 +1,165 @@
+commit 3729c798779515af4dcd98f8054474fa24cbfc41
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Apr 14 15:42:49 2017 +0200
+
+    v1.0.0
+
+src/redbug.app.src
+
+commit ad158fc45ebbb1cc90163122f122b8ba231d748d
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Thu Apr 13 23:03:59 2017 +0200
+
+    add hex stuff
+
+rebar.config
+src/redbug.app.src
+
+commit b50af2659f6ad68568706573438e505f5561d370
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Thu Apr 13 22:50:22 2017 +0200
+
+    move eunit stuff to /test
+
+src/redbug_msc.erl
+test/redbug_msc_eunit.erl
+
+commit b1d2c2f0b4cff71463d257fd9660953c918b33b0
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Thu Apr 13 22:39:10 2017 +0200
+
+    add travis badge
+
+README.md
+
+commit c2d274528fe29c6df931ea64881a1a988b9c0310
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Thu Apr 13 22:36:18 2017 +0200
+
+    change test target
+
+Makefile
+
+commit 32702e66a459d9953927e516d79a453f05239faf
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Thu Apr 13 22:19:15 2017 +0200
+
+    add travis
+
+.travis.yml
+src/redbug.app.src
+
+commit ce73f9050118acb170d0d351af76175cba35b1fb
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Wed Mar 29 01:37:09 2017 +0200
+
+    cosmetic
+
+Makefile
+rebar.config
+src/redbug.erl
+src/redbug_targ.erl
+test/bread.erl
+test/redbug_eunit.erl
+test/replay_trc.erl
+
+commit 2b173363b427dec96bb354561192bbb50783c486
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Wed Mar 29 01:36:30 2017 +0200
+
+    send 'stop' to consumer
+
+src/redbug_targ.erl
+
+commit c45ea1806ee6656acd86f2d099977c58b4aa02bd
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Wed Mar 29 01:20:54 2017 +0200
+
+    fix some typos
+
+src/redbug.erl
+src/redbug_targ.erl
+
+commit 981d2af3bb92561e881aa5d3ba8ca078c381542e
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Wed Mar 29 00:51:27 2017 +0200
+
+    elided prf
+
+.edts
+src/prf.erl
+src/prfHost.erl
+src/prfTarg.erl
+src/prfTime.erl
+src/redbug.erl
+src/redbugConsumer.erl
+src/redbug_targ.erl
+test/redbug_eunit.erl
+
+commit 28b9208c57608fd62142933d5e124d233d91673a
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Tue Mar 28 22:55:26 2017 +0200
+
+    move prf:human -> redbug.erl
+
+src/redbug.erl
+
+commit ce9247c856fce70821361a30c610d6345e7adf48
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Dec 2 12:34:06 2016 +0100
+
+    cosmetic
+
+src/redbug.erl
+
+commit 81b33d3b8d8d3468acdd4e5fcc33c275ac840833
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Sep 12 23:00:18 2016 +0200
+
+    add rebar.config.script
+
+rebar.config.script
+
+commit 0888e43bb0e9559d010e0af1c0e78bf9c71db01e
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Sep 12 22:31:40 2016 +0200
+
+    format README.md
+
+README.md
+
+commit d570fba2d985f8b8bf79e3d55558ddc2d3386716
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Sep 12 22:24:53 2016 +0200
+
+    import from eper
+
+.gitignore
+Makefile
+README.md
+bin/release.sh
+rebar.config
+rebar.lock
+rebar3
+src/bread.erl
+src/log.hrl
+src/prf.erl
+src/prfHost.erl
+src/prfTarg.erl
+src/prfTime.erl
+src/prfTrc.erl
+src/redbug.app.src
+src/redbug.erl
+src/redbugConsumer.erl
+src/redbug_eunit.erl
+src/redbug_msc.erl
+src/replay_trc.erl
+
+commit d9448d9bcea5a5f2a804990fc1a5ab684182bcdf
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Sep 12 21:35:53 2016 +0200
+
+    Initial commit
+
+LICENSE
+README.md

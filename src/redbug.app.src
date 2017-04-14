@@ -1,6 +1,6 @@
 {application, redbug,
  [{description, "Erlang Tracing Debugger"},
-  {vsn, "0.97.2"},
+  {vsn, "1.0.0"},
   {registered, []},
   {applications,
    [kernel,
