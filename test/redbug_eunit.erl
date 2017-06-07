@@ -1,8 +1,4 @@
 %% -*- mode: erlang; erlang-indent-level: 2 -*-
-%%% Created :  5 Feb 2014 by mats cronqvist <masse@klarna.com>
-
-%% @doc
-%% @end
 
 -module('redbug_eunit').
 -author('mats cronqvist').
