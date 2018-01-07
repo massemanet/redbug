@@ -27,10 +27,11 @@
           max_queue    = 5000,         % max # of msgs before suicide
           max_msg_size = 50000,        % max message size before suicide
           debug        = false,        % big error messages
-          %% print-related
+          trace_child  = false,        % children gets traced (set_on_spawn)
           arity        = false,        % arity instead of args
-          buffered     = false,        % output buffering
           discard      = false,        % discard messages (when counting)
+          %% print-related
+          buffered     = false,        % output buffering
           print_calls  = true,         % print calls
           print_file   = "",           % file to print to (standard_io)
           print_msec   = false,        % print milliseconds in timestamps?
@@ -93,6 +94,7 @@ help() ->
      , "cookie       (host cookie) target node cookie"
      , "blocking     (false)       block start/2, return a list of messages"
      , "arity        (false)       print arity instead of arg list"
+     , "trace_child  (false)       children gets traced (set_on_spawn)"
      , "buffered     (false)       buffer messages till end of trace"
      , "discard      (false)       discard messages (when counting)"
      , "max_queue    (5000)        fail if internal queue gets this long"
@@ -439,9 +441,10 @@ mfaf(I) ->
 %%%         {ip,Port,Queue}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 pack(Cnf) ->
-  {Flags,RTPs} = lists:foldl(fun chk_trc/2,{[],[]},slist(Cnf#cnf.trc)),
+  Flags0 = [call,timestamp],
+  {Flags,RTPs} = lists:foldl(fun chk_trc/2,{Flags0,[]},slist(Cnf#cnf.trc)),
   dict:from_list([{time,chk_time(Cnf#cnf.time)},
-                  {flags,[call,timestamp|maybe_arity(Cnf,Flags)]},
+                  {flags,maybe_arity(Cnf,maybe_trace_child(Cnf,Flags))},
                   {rtps,RTPs},
                   {procs,[chk_proc(P) || P <- mk_list(Cnf#cnf.procs)]},
                   {where,where(Cnf)}]).
@@ -468,6 +471,9 @@ conf_term(Cnf) ->
 
 maybe_arity(#cnf{arity=true},Flags) -> [arity|Flags];
 maybe_arity(_,Flags)                -> Flags.
+
+maybe_trace_child(#cnf{trace_child=true},Flags) -> [set_on_spawn|Flags];
+maybe_trace_child(_,Flags)                      -> Flags.
 
 chk_time(Time) when is_integer(Time) -> Time;
 chk_time(X) -> throw({bad_time,X}).
