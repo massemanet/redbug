@@ -1,9 +1,28 @@
-commit f62489d8e681c50956f6681ec2b3a52a8939a345
+commit f8ca85d6b55b51985c972a0ff5ef6c588599c9f8
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Jan 8 16:24:21 2018 +0100
+
+    v1.1.2
+
+src/redbug.app.src
+
+commit 6212b5809c93076a445153b8764db364a247f7b5
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Jan 8 16:02:03 2018 +0100
+
+    don't ship rebar3 binary
+
+Makefile
+bin/release.sh
+rebar3
+
+commit 8a91a1d5eded6c5e97176275dfb0688dd4bc1300
 Author: mats cronqvist <masse@cronqvi.st>
 Date:   Mon Jan 8 15:36:00 2018 +0100
 
     v1.1.1
 
+ChangeLog
 src/redbug.app.src
 
 commit 92a3800ab0ef3f50674fafd9ae5f19a9e466c9b6
