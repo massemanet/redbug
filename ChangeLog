@@ -1,9 +1,27 @@
-commit 0aa3c04d110ec29fe78129a65554b0fd06c61ab4
+commit f62489d8e681c50956f6681ec2b3a52a8939a345
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Jan 8 15:36:00 2018 +0100
+
+    v1.1.1
+
+src/redbug.app.src
+
+commit 92a3800ab0ef3f50674fafd9ae5f19a9e466c9b6
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Jan 8 15:35:28 2018 +0100
+
+    hex stuff
+
+rebar.config
+rebar3
+
+commit ad2f2a5fd499c6b3d7c65c33e3931c582040fcc6
 Author: mats cronqvist <masse@cronqvi.st>
 Date:   Mon Jan 8 13:40:25 2018 +0100
 
     v1.1.0
 
+ChangeLog
 src/redbug.app.src
 
 commit 753dde6e6adb5c23ee9b98a11c77bf485c6c744f
