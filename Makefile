@@ -1,4 +1,4 @@
-REBAR = ./rebar3
+REBAR = rebar3
 
 .PHONY: all compile test clean
 .PHONY: test eunit xref dialyze

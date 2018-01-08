@@ -37,4 +37,4 @@ git log | grep Author | grep -Evi "vagrant|no author|mats cronqvist" \
 git add ChangeLog AUTHORS
 git commit --amend --reuse-message HEAD
 git tag -a -m"$NVSN" $NVSN
-#git push --tags
+git push && git push --tags
