@@ -12,43 +12,43 @@
 -export([start/1,start/2,start/3,start/4,start/5]).
 -export([stop/0]).
 
--include("log.hrl").
+-define(log(T),log([process_info(self(),current_function),{line,?LINE}],T)).
 
 %% the redbug server data structure
 %% most can be set in the input proplist
 -record(cnf,{
           %% general
-          time         = 15000,        % stop trace after this time [ms]
-          msgs         = 10,           % stop trace after this # msgs [unit]
-          target       = node(),       % target node
-          cookie       = '',           % target node cookie
-          blocking     = false,        % run blocking; return a list of msgs
-          procs        = all,          % list of procs (or 'all')
-          max_queue    = 5000,         % max # of msgs before suicide
-          max_msg_size = 50000,        % max message size before suicide
-          debug        = false,        % big error messages
-          trace_child  = false,        % children gets traced (set_on_spawn)
-          arity        = false,        % arity instead of args
-          discard      = false,        % discard messages (when counting)
+          time         = 15000,       % stop trace after this time [ms]
+          msgs         = 10,          % stop trace after this # msgs [unit]
+          target       = node(),      % target node
+          cookie       = '',          % target node cookie
+          blocking     = false,       % run blocking; return a list of msgs
+          procs        = all,         % list of procs (or 'all')
+          max_queue    = 5000,        % max # of msgs before suicide
+          max_msg_size = 50000,       % max message size before suicide
+          debug        = false,       % big error messages
+          trace_child  = false,       % children gets traced (set_on_spawn)
+          arity        = false,       % arity instead of args
+          discard      = false,       % discard messages (when counting)
           %% print-related
-          buffered     = false,        % output buffering
-          print_calls  = true,         % print calls
-          print_file   = "",           % file to print to (standard_io)
-          print_msec   = false,        % print milliseconds in timestamps?
-          print_depth  = 999999,       % Limit for "~P" formatting depth
-          print_re     = "",           % regexp that must match to print
-          print_return = true,         % print return value
-          print_fun    = '',           % custom print handler
+          buffered     = false,       % output buffering
+          print_calls  = true,        % print calls
+          print_file   = "",          % file to print to (standard_io)
+          print_msec   = false,       % print milliseconds in timestamps?
+          print_depth  = 999999,      % Limit for "~P" formatting depth
+          print_re     = "",          % regexp that must match to print
+          print_return = true,        % print return value
+          print_fun    = '',          % custom print handler
           %% trc file-related
-          file         = "",           % file to write trace msgs to
-          file_size    = 1,            % file size (per file [Mb])
-          file_count   = 8,            % number of files in wrap log
+          file         = "",          % file to write trace msgs to
+          file_size    = 1,           % file size (per file [Mb])
+          file_count   = 8,           % number of files in wrap log
           %% internal
-          trc          = [],           % cannot be set by user
-          shell_pid    = [],           % cannot be set by user
-          print_pid    = [],           % cannot be set by user
-          trc_pid      = [],           % cannot be set by user
-          cons_pid     = []            % cannot be set by user
+          trc          = [],          % cannot be set by user
+          shell_pid    = [],          % cannot be set by user
+          print_pid    = [],          % cannot be set by user
+          trc_pid      = [],          % cannot be set by user
+          cons_pid     = []           % cannot be set by user
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -56,68 +56,68 @@
 help() ->
   Text =
     ["redbug - the (sensibly) Restrictive Debugger"
-     , ""
-     , "  redbug:start(Trc) -> start(Trc,[])."
-     , "  redbug:start(Trc,Opts)."
-     , ""
-     , "  redbug is a tool to interact with the Erlang trace facility."
-     , "  It will instruct the Erlang VM to generate so called "
-     , "  'trace messages' when certain events (such as a particular"
-     , "  function being called) occur."
-     , "  The trace messages are either printed (i.e. human readable)"
-     , "  to a file or to the screen; or written to a trc file."
-     , "  Using a trc file puts less stress on the system, but"
-     , "  there is no way to count the messages (so the msgs opt"
-     , "  is ignored), and the files can only be read by special tools"
-     , "  (such as 'bread'). Printing and trc files cannot be combined."
-     , "  By default (i.e. if the 'file' opt is not given), messages"
-     , "  are printed."
-     , ""
-     , "Trc: list('send'|'receive'|string(RTP))"
-     , "RTP:  restricted trace pattern"
-     , "  the RTP has the form: \"<mfa> when <guards> -> <actions>\""
-     , "  where <mfa> can be;"
-     , "  \"mod\", \"mod:fun\", \"mod:fun/3\" or \"mod:fun('_',atom,X)\""
-     , "  <guard> is something like;"
-     , "  \"X==1\" or \"is_atom(A)\""
-     , "  and <action> is;"
-     , "  \"return\" and/or \"stack\" (separated by \";\")"
-     , ""
-     , "  E.g."
-     , "  ets:lookup(T,hostname) when is_integer(T) ->stack"
-     , ""
-     , "Opts: list({Opt,Val})"
-     , "  general opts:"
-     , "time         (15000)       stop trace after this many ms"
-     , "msgs         (10)          stop trace after this many msgs"
-     , "target       (node())      node to trace on"
-     , "cookie       (host cookie) target node cookie"
-     , "blocking     (false)       block start/2, return a list of messages"
-     , "arity        (false)       print arity instead of arg list"
-     , "trace_child  (false)       children gets traced (set_on_spawn)"
-     , "buffered     (false)       buffer messages till end of trace"
-     , "discard      (false)       discard messages (when counting)"
-     , "max_queue    (5000)        fail if internal queue gets this long"
-     , "max_msg_size (50000)       fail if seeing a msg this big"
-     , "procs        (all)         (list of) Erlang process(es)"
-     , "                             all|pid()|atom(RegName)|{pid,I2,I3}"
-     , "  print-related opts"
-     , "print_calls  (true)        print calls"
-     , "print_file   (standard_io) print to this file"
-     , "print_msec   (false)       print milliseconds on timestamps"
-     , "print_depth  (999999)      formatting depth for \"~P\""
-     , "print_re     (\"\")          print only strings that match this RE"
-     , "print_return (true)        print the return value"
-     , "print_fun    ()            custom print handler, fun/1 or fun/2;"
-     , "                             fun(TrcMsg) -> <ignored>"
-     , "                             fun(TrcMsg,AccOld) -> AccNew"
-     , "  trc file related opts"
-     , "file         (none)        use a trc file based on this name"
-     , "file_size    (1)           size of each trc file"
-     , "file_count   (8)           number of trc files"
-     , ""
+     ,""
+     ,"  redbug:start(Trc) -> start(Trc, [])."
+     ,"  redbug:start(Trc, Opts)."
+     ,""
+     ,"  redbug is a tool to interact with the Erlang trace facility."
+     ,"  It will instruct the Erlang VM to generate so called "
+     ,"  'trace messages' when certain events (such as a particular"
+     ,"  function being called) occur."
+     ,"  The trace messages are either printed (i.e. human readable)"
+     ,"  to a file or to the screen; or written to a trc file."
+     ,"  Using a trc file puts less stress on the system, but"
+     ,"  there is no way to count the messages (so the msgs opt"
+     ,"  is ignored), and the files can only be read by special tools"
+     ,"  (such as 'bread'). Printing and trc files cannot be combined."
+     ,"  By default (i.e. if the 'file' opt is not given), messages"
+     ,"  are printed."
+     ,""
+     ,"Trc: list('send'|'receive'|string(RTP))"
+     ,"RTP:  restricted trace pattern"
+     ,"  the RTP has the form: \"<mfa> when <guards> -> <actions>\""
+     ,"  where <mfa> can be;"
+     ,"  \"mod\", \"mod:fun\", \"mod:fun/3\" or \"mod:fun('_', atom, X)\""
+     ,"  <guard> is something like;"
+     ,"  \"X==1\" or \"is_atom(A)\""
+     ,"  and <action> is;"
+     ,"  \"return\" and/or \"stack\" (separated by \";\")"
+     ,""
+     ,"  E.g."
+     ,"  ets:lookup(T, hostname) when is_integer(T) -> stack"
+     ,""
+     ,"Opts: list({Opt, Val})"
+     ,"  general opts:"
+     ,"time         (15000)       stop trace after this many ms"
+     ,"msgs         (10)          stop trace after this many msgs"
+     ,"target       (node())      node to trace on"
+     ,"cookie       (host cookie) target node cookie"
+     ,"blocking     (false)       block start/2, return a list of messages"
+     ,"arity        (false)       print arity instead of arg list"
+     ,"trace_child  (false)       children gets traced (set_on_spawn)"
+     ,"buffered     (false)       buffer messages till end of trace"
+     ,"discard      (false)       discard messages (when counting)"
+     ,"max_queue    (5000)        fail if internal queue gets this long"
+     ,"max_msg_size (50000)       fail if seeing a msg this big"
+     ,"procs        (all)         (list of) Erlang process(es)"
+     ,"                             all|pid()|atom(RegName)|{pid, I2, I3}"
+     ,"  print-related opts"
+     ,"print_calls  (true)        print calls"
+     ,"print_file   (standard_io) print to this file"
+     ,"print_msec   (false)       print milliseconds on timestamps"
+     ,"print_depth  (999999)      formatting depth for \"~P\""
+     ,"print_re     (\"\")          print only strings that match this RE"
+     ,"print_return (true)        print the return value"
+     ,"print_fun    ()            custom print handler, fun/1 or fun/2;"
+     ,"                             fun(TrcMsg) -> <ignored>"
+     ,"                             fun(TrcMsg, AccOld) -> AccNew"
+     ,"  trc file related opts"
+     ,"file         (none)        use a trc file based on this name"
+     ,"file_size    (1)           size of each trc file"
+     ,"file_count   (8)           number of trc files"
+     ,""
     ],
-  lists:foreach(fun(S)->io:fwrite(standard_io,"~s~n",[S])end,Text).
+  lists:foreach(fun(S) -> io:fwrite(standard_io,"~s~n",[S])end,Text).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API from erlang shell
@@ -129,19 +129,19 @@ stop() ->
   end.
 
 %% a bunch of aliases for start/2
-start(Trc) -> start(Trc, []).
+start(Trc) -> start(Trc,[]).
 
-start(T,M,Trc) -> start(Trc, [{time,T},{msgs,M}]).
+start(T,M,Trc) -> start(Trc,[{time,T},{msgs,M}]).
 
-start(T,M,Trc,P) -> start(Trc, [{time,T},{msgs,M},{procs,P}]).
+start(T,M,Trc,P) -> start(Trc,[{time,T},{msgs,M},{procs,P}]).
 
-start(T,M,Trc,P,N)  -> start(Trc, [{time,T},{msgs,M},{procs,P},{target,N}]).
+start(T,M,Trc,P,N)  -> start(Trc,[{time,T},{msgs,M},{procs,P},{target,N}]).
 
-start(M,F) when is_atom(M), is_atom(F) -> start({M,F});
-start(send,Props)                      -> start([send],Props);
-start('receive',Props)                 -> start(['receive'],Props);
-start(M,Props) when is_atom(M)         -> start([{M,'_'}],Props);
-start(Trc,{Tag,Val})                   -> start(Trc, [{Tag,Val}]);
+start(M,F) when is_atom(M),is_atom(F) -> start({M,F});
+start(send,Props)                     -> start([send],Props);
+start('receive',Props)                -> start(['receive'],Props);
+start(M,Props) when is_atom(M)        -> start([{M,'_'}],Props);
+start(Trc,{Tag,Val})                  -> start(Trc,[{Tag,Val}]);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the real start function!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -151,7 +151,7 @@ start(Trc,Props) when is_list(Props) ->
       try
         Cnf = assert_print_fun(make_cnf(Trc,[{shell_pid,self()}|Props])),
         assert_cookie(Cnf),
-        register(redbug, spawn(fun() -> init(Cnf) end)),
+        register(redbug,spawn(fun() -> init(Cnf) end)),
         maybe_block(Cnf,block_a_little())
       catch
         R   -> R;
@@ -179,7 +179,7 @@ assert_cookie(Cnf) -> erlang:set_cookie(Cnf#cnf.target,Cnf#cnf.cookie).
 block_a_little() ->
   Ref = erlang:monitor(process,redbug),
   receive
-    {running,NoP,NoF}  -> erlang:demonitor(Ref), {NoP,NoF};
+    {running,NoP,NoF}  -> erlang:demonitor(Ref),{NoP,NoF};
     {'DOWN',Ref,_,_,R} -> R
   end.
 
@@ -340,7 +340,7 @@ mk_outer(#cnf{print_depth=Depth,print_msec=MS,print_return=Ret} = Cnf) ->
         {'call_count',{_,false}} ->
           ok;
         {'call_count',{{M,F,A},Count}} ->
-          [OutFun("~n% ~6s : ~w:~w/~w", [human(Count),M,F,A]) || 0 < Count];
+          [OutFun("~n% ~6s : ~w:~w/~w",[human(Count),M,F,A]) || 0 < Count];
         {'call',{{M,F,A},Bin}} ->
           case Cnf#cnf.print_calls of
             true ->
@@ -351,7 +351,7 @@ mk_outer(#cnf{print_depth=Depth,print_msec=MS,print_return=Ret} = Cnf) ->
                   As = string:join([flat("~P",[E,Depth]) || E <- A],", "),
                   OutFun("~n% ~s ~s~n% ~w:~w(~s)",[MTS,to_str(PI),M,F,As])
               end,
-              lists:foreach(fun(L)->OutFun("  ~s",[L]) end, stak(Bin));
+              lists:foreach(fun(L) -> OutFun("  ~s",[L]) end,stak(Bin));
             false->
               ok
           end;
@@ -374,7 +374,7 @@ mk_outer(#cnf{print_depth=Depth,print_msec=MS,print_return=Ret} = Cnf) ->
 to_str({Pid,Reg}) ->
   flat("~w(~p)",[Pid,Reg]);
 to_str(RegisteredName) ->
-  flat("~p", [RegisteredName]).
+  flat("~p",[RegisteredName]).
 
 mk_out(#cnf{print_re=RE,print_file=File}) ->
   FD = get_fd(File),
@@ -412,14 +412,14 @@ munge(I,Out) ->
   case lists:reverse(I) of
     "..."++_ -> [truncated|Out];
     _ ->
-      case string:str(I, "Return addr") of
+      case string:str(I,"Return addr") of
         0 ->
-          case string:str(I, "cp = ") of
+          case string:str(I,"cp = ") of
             0 -> Out;
             _ -> [mfaf(I)|Out]
           end;
         _ ->
-          case string:str(I, "erminate process normal") of
+          case string:str(I,"erminate process normal") of
             0 -> [mfaf(I)|Out];
             _ -> Out
           end
@@ -427,7 +427,7 @@ munge(I,Out) ->
   end.
 
 mfaf(I) ->
-  [_, C|_] = string:tokens(I,"()+"),
+  [_,C|_] = string:tokens(I,"()+"),
   C.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -483,14 +483,14 @@ chk_buffered(true,_)  -> term_buffer;
 chk_buffered(false,_) -> term_stream.
 
 chk_proc(Pid) when is_pid(Pid) -> Pid;
-chk_proc(Atom) when is_atom(Atom)-> Atom;
-chk_proc({pid,I1,I2}) when is_integer(I1), is_integer(I2) -> {pid,I1,I2};
+chk_proc(Atom) when is_atom(Atom) -> Atom;
+chk_proc({pid,I1,I2}) when is_integer(I1),is_integer(I2) -> {pid,I1,I2};
 chk_proc(X) -> throw({bad_proc,X}).
 
 chk_msgs(Msgs) when is_integer(Msgs) -> Msgs;
 chk_msgs(X) -> throw({bad_msgs,X}).
 
--define(is_string(Str), (Str=="" orelse (9=<hd(Str) andalso hd(Str)=<255))).
+-define(is_string(Str),(Str=="" orelse (9=<hd(Str) andalso hd(Str)=<255))).
 
 chk_trc('send',{Flags,RTPs})                   -> {['send'|Flags],RTPs};
 chk_trc('receive',{Flags,RTPs})                -> {['receive'|Flags],RTPs};
@@ -540,3 +540,9 @@ human(E,M) ->
 
 flat(Format,Args) ->
   lists:flatten(io_lib:fwrite(Format,Args)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% logging
+
+log(HD,T) when ?is_string(T) -> log(HD,[T]);
+log(HD,T) -> error_logger:info_report(HD++T).

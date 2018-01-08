@@ -10,10 +10,8 @@
 
 -export([start/2]).
 
--include("log.hrl").
-
 %%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-start(Node, Cnf) ->
+start(Node,Cnf) ->
   assert_loaded(Node),
   do_start(Node,dict:store(host_pid,self(),Cnf)).
 
@@ -80,7 +78,7 @@ active(Cnf) ->
     {'EXIT',HostPid,_}  -> remote_stop(Cons,Cnf);
     {local_stop,R}      -> local_stop(HostPid,Cnf,R);
     {'EXIT',Cons,R}     -> local_stop(HostPid,Cnf,R);
-    X                   -> ?log({weird_in,X}),active(Cnf)
+    _                   -> active(Cnf)
   end.
 
 local_stop(HostPid,Cnf,R) ->
@@ -118,13 +116,13 @@ expand_underscore(ExpandedRtp,O) ->
   [ExpandedRtp|O].
 
 modules() ->
-  [M || {M,F} <- code:all_loaded(), is_list(F), filelib:is_regular(F)].
+  [M || {M,F} <- code:all_loaded(),is_list(F),filelib:is_regular(F)].
 
 functions(M) ->
   locals(M)++globals(M).
 
 arities(M,F) ->
-  [Ari || {Fun,Ari} <- functions(M), Fun =:= F].
+  [Ari || {Fun,Ari} <- functions(M),Fun =:= F].
 
 locals(M) ->
   case code:which(M) of
@@ -133,7 +131,7 @@ locals(M) ->
       case beam_lib:chunks(F,[locals]) of
         {ok,{M,[{locals,Locals}]}} ->
           Locals;
-        {error, beam_lib, {missing_chunk, _, _}} ->
+        {error,beam_lib,{missing_chunk,_,_}} ->
           []
       end
   end.
@@ -142,7 +140,7 @@ globals(M) ->
   M:module_info(exports).
 
 maybe_load_rtps(Rtps) ->
-  lists:foldl(fun maybe_load_rtp/2, [], Rtps).
+  lists:foldl(fun maybe_load_rtp/2,[],Rtps).
 
 maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
   try
@@ -216,7 +214,7 @@ mk_prc(Reg,A) when is_atom(Reg) ->
     Pid when is_pid(Pid) -> mk_prc(Pid,A);
     undefined -> A
   end;
-mk_prc({pid,P1,P2},A) when is_integer(P1), is_integer(P2) ->
+mk_prc({pid,P1,P2},A) when is_integer(P1),is_integer(P2) ->
   mk_prc(c:pid(0,P1,P2),A);
 mk_prc(Pid,A) when is_pid(Pid) ->
   case is_process_alive(Pid) of
@@ -226,7 +224,7 @@ mk_prc(Pid,A) when is_pid(Pid) ->
 
 real_consumer(C) ->
   Mon = erlang:monitor(process,C),
-  C ! {show_port, self()},
+  C ! {show_port,self()},
   receive
     {'DOWN',Mon,_,C,R} -> exit({no_local_consumer,R});
     Port               -> erlang:demonitor(Mon,[flush]),
@@ -256,22 +254,22 @@ consumer_pid({Pid,Cnt,MaxQueue,MaxSize},Buf,Cnf) ->
 consumer_file(File,Size,WrapCount,Cnf) ->
   C =
     dict:from_list(
-      [{style,file}
-       , {file,File}
-       , {size,Size}
-       , {wrap_count,WrapCount}
-       , {time,dict:fetch(time,Cnf)}
-       , {daddy, self()}]),
+      [{style,file},
+       {file,File},
+       {size,Size},
+       {wrap_count,WrapCount},
+       {time,dict:fetch(time,Cnf)},
+       {daddy,self()}]),
   spawn_link(fun() -> init_local_port(C) end).
 
 consumer_ip(Port,QueueSize,Cnf) ->
   C =
     dict:from_list(
-      [{style,ip}
-       , {port_no,Port}
-       , {queue_size,QueueSize}
-       , {time,dict:fetch(time,Cnf)}
-       , {daddy, self()}]),
+      [{style,ip},
+       {port_no,Port},
+       {queue_size,QueueSize},
+       {time,dict:fetch(time,Cnf)},
+       {daddy,self()}]),
   spawn_link(fun() -> init_local_port(C) end).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -287,7 +285,7 @@ init_local_port(Cnf) ->
   loop_local_port(dict:store(port,Port,Cnf)).
 
 loop_local_port(Cnf) ->
-  Daddy = dict:fetch(daddy, Cnf),
+  Daddy = dict:fetch(daddy,Cnf),
   receive
     {show_port,Pid}   -> Pid ! dict:fetch(port,Cnf),
                          loop_local_port(Cnf);
@@ -303,13 +301,13 @@ mk_port(Cnf) ->
     ip ->
       Port = dict:fetch(port_no,Cnf),
       QueueSize = dict:fetch(queue_size,Cnf),
-      (dbg:trace_port(ip,{Port, QueueSize}))();
+      (dbg:trace_port(ip,{Port,QueueSize}))();
     file ->
       File = dict:fetch(file,Cnf),
       WrapCount = dict:fetch(wrap_count,Cnf),
       WrapSize = dict:fetch(size,Cnf)*1024*1024,% file size (per file) in MB.
       Suffix = ".trc",
-      (dbg:trace_port(file,{File, wrap, Suffix, WrapSize, WrapCount}))()
+      (dbg:trace_port(file,{File,wrap,Suffix,WrapSize,WrapCount}))()
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -363,7 +361,7 @@ maybe_exit(msg_count,{LD,Buff,0}) ->
   exit(msg_count);
 maybe_exit(msg_queue,#ld{maxqueue=MQ}) ->
   maybe_exit_queue(MQ);
-maybe_exit(msg_size,{#ld{maxsize=MS},{call,_,_,{MFA,B}}}) when is_binary(B)->
+maybe_exit(msg_size,{#ld{maxsize=MS},{call,_,_,{MFA,B}}}) when is_binary(B) ->
   maybe_exit_call(MS,MFA,B);
 maybe_exit(msg_size,{#ld{maxsize=MS},{call,_,_,MFA}}) ->
   maybe_exit_call(MS,MFA,<<>>);
@@ -393,7 +391,7 @@ maybe_exit_stack(MS,B) ->
 maybe_exit_args(MS,T) when is_tuple(T) ->
   maybe_exit_args(MS,tuple_to_list(T));
 maybe_exit_args(MS,L) when length(L) < MS ->
-  lists:foreach(fun(E)->maybe_exit_args(MS,E)end,L);
+  lists:foreach(fun(E) -> maybe_exit_args(MS,E)end,L);
 maybe_exit_args(MS,L) when MS =< length(L) ->
   exit({arg_length,length(L)});
 maybe_exit_args(MS,B) when MS < byte_size(B) ->
@@ -411,7 +409,7 @@ flush(LD,Buffer) ->
   lists:foreach(fun(RTP) -> flush_time_count(RTP,LD#ld.where) end,LD#ld.rtps).
 
 flush_time_count({MFA,_MatchSpec,Flags},Where) ->
-  Where ! lists:foldl(fun(Flag,A)-> time_count(MFA,Flag,A) end,[],Flags).
+  Where ! lists:foldl(fun(Flag,A) -> time_count(MFA,Flag,A) end,[],Flags).
 
 time_count(MFA,Flag,A) when Flag == call_count; Flag == call_time ->
   [{Flag,{MFA,element(2,erlang:trace_info(MFA,Flag))},[],ts(ts())}|A];
@@ -426,12 +424,12 @@ msg({'call',Pid,TS,{MFA,B}})           -> {'call',{MFA,B},     pi(Pid),ts(TS)};
 msg({'call',Pid,TS,MFA})               -> {'call',{MFA,<<>>},  pi(Pid),ts(TS)}.
 
 pi(P) when is_pid(P) ->
-  try process_info(P, registered_name) of
+  try process_info(P,registered_name) of
       [] ->
-        case process_info(P, initial_call) of
-          {_, {proc_lib,init_p,5}} -> {P,proc_lib:translate_initial_call(P)};
-          {_,MFA}                  -> {P,MFA};
-          undefined                -> {P,dead}
+        case process_info(P,initial_call) of
+          {_,{proc_lib,init_p,5}} -> {P,proc_lib:translate_initial_call(P)};
+          {_,MFA}                 -> {P,MFA};
+          undefined               -> {P,dead}
         end;
       {_,Nam}   -> {P,Nam};
       undefined -> {P,dead}
@@ -443,8 +441,8 @@ pi(P) when is_port(P) ->
   [Hd|_] = string:tokens(N," "),
   {P,lists:reverse(hd(string:tokens(lists:reverse(Hd),"/")))};
 pi(R) when is_atom(R) -> R;
-pi({R,Node}) when is_atom(R), Node == node() -> R;
-pi({R,Node}) when is_atom(R), is_atom(Node) -> {R,Node}.
+pi({R,Node}) when is_atom(R),Node == node() -> R;
+pi({R,Node}) when is_atom(R),is_atom(Node) -> {R,Node}.
 
 ts(Nw) ->
   {_,{H,M,S}} = calendar:now_to_local_time(Nw),

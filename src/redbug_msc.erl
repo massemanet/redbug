@@ -35,7 +35,7 @@ compile({Mod,F,As,Gs,Acts}) ->
   {{Mod,Fun,Arg},[{Args,Guards,Actions}],Flags}.
 
 chk_fa(' ',_) -> {'_','_'};
-chk_fa(F,'_') -> {F,  '_'};
+chk_fa(F,'_') -> {F,'_'};
 chk_fa(F,As)  -> {F,length(As)}.
 
 compile_flags(F,Acts) ->
@@ -234,7 +234,7 @@ arg_list(V)            -> arg(V).
 actions_fun(Str) ->
   fun() ->
       Acts = string:tokens(Str,";,"),
-      [exit({unknown_action,A}) || A <- Acts, not lists:member(A,acts())],
+      [exit({unknown_action,A}) || A <- Acts,not lists:member(A,acts())],
       Acts
   end.
 
