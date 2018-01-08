@@ -1,9 +1,75 @@
-commit 3729c798779515af4dcd98f8054474fa24cbfc41
+commit 0aa3c04d110ec29fe78129a65554b0fd06c61ab4
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Jan 8 13:40:25 2018 +0100
+
+    v1.1.0
+
+src/redbug.app.src
+
+commit 753dde6e6adb5c23ee9b98a11c77bf485c6c744f
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Jan 8 12:59:43 2018 +0100
+
+    whitespace
+
+README.md
+src/log.hrl
+src/redbug.erl
+src/redbug_msc.erl
+src/redbug_targ.erl
+
+commit 54e94cf3e4862f109da47a857c801350d13e44e4
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Jan 8 11:53:51 2018 +0100
+
+    run travis on 20.2
+
+.travis.yml
+
+commit aa7f8610f449af0d0c0fe8ec1cceb4460f0a6f9f
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Sun Jan 7 16:00:17 2018 +0100
+
+    implement trace_child (sets 'set_on_spawn')
+    For example, here we trace on 'maps', and call 'maps:new/0' in a child process
+    3> redbug:start("maps",[{procs,self()}]).
+    4> spawn(fun()->maps:new()end).
+    <0.122.0>
+    redbug done, timeout - 0
+    5> redbug:start("maps",[{procs,self()},trace_child]).
+    6> spawn(fun()->maps:new()end).
+    <0.129.0>
+    % 15:59:13 <0.129.0>(dead)
+    % maps:new()
+    redbug done, timeout - 1
+
+src/redbug.erl
+
+commit 4e7c6dc81406483d69553f870b3a356a8a98bf05
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Wed Jun 7 19:39:38 2017 +0200
+
+    docs
+
+test/redbug_eunit.erl
+
+commit a66b6a0ee61b2f1c7904b312a580e0549368fb29
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Apr 14 16:41:35 2017 +0200
+
+    add 'publish' make target
+
+Makefile
+rebar.config
+
+commit 584ecddfd998cea6ccb9aa23eb75d4fc0c92850a
 Author: mats cronqvist <masse@cronqvi.st>
 Date:   Fri Apr 14 15:42:49 2017 +0200
 
     v1.0.0
 
+AUTHORS
+ChangeLog
 src/redbug.app.src
 
 commit ad158fc45ebbb1cc90163122f122b8ba231d748d
