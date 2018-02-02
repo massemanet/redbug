@@ -421,6 +421,22 @@ t56_test() ->
          [{[#{a=>b,c=>d}],[],[]}],
          [local]}})).
 
+t57_test() ->
+  ?assert(
+     unit(
+       {"maps:to_list(#{a=>b,c=>D})when D==e",
+        {{maps,to_list,1},
+         [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
+         [local]}})).
+
+t58_test() ->
+  ?assert(
+     unit(
+       {"maps:to_list(#{a:=b,c:=D})when D==e",
+        {{maps,to_list,1},
+         [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
+         [local]}})).
+
 unit({Str,MS}) ->
   try
     MS = redbug_msc:transform(Str),true

@@ -96,12 +96,13 @@ compile_args(As) ->
   lists:foldl(fun ca_fun/2,{[],[]},As).
 
 ca_fun({map,Map},{Vars,O}) ->
-  {Vars,O++[unpack_var({map,Map},Vars)]};
+  {Vs,Ps} = ca_map(Map,Vars),
+  {Vs,O++[maps:from_list(Ps)]};
 ca_fun({list,Es},{Vars,O}) ->
-  {Vs,Ps} = ca_fun_list(Es,Vars),
+  {Vs,Ps} = ca_list(Es,Vars),
   {Vs,O++[Ps]};
 ca_fun({tuple,Es},{Vars,O}) ->
-  {Vs,Ps} = ca_fun_list(Es,Vars),
+  {Vs,Ps} = ca_list(Es,Vars),
   {Vs,O++[list_to_tuple(Ps)]};
 ca_fun({var,'_'},{Vars,O}) ->
   {Vars,O++['_']};
@@ -112,7 +113,16 @@ ca_fun({Type,Val},{Vars,O}) ->
   assert_type(Type,Val),
   {Vars,O++[Val]}.
 
-ca_fun_list(Es,Vars) ->
+ca_map(Fs,Vars) ->
+  cfm(Fs,{Vars,[]}).
+
+cfm([],O) -> O;
+cfm([{K,V}|Fs],{V0,P0}) ->
+  {[],[PK]} = ca_fun(K,{[],[]}),
+  {Vs,[PV]} = ca_fun(V,{V0,[]}),
+  cfm(Fs,{lists:usort(V0++Vs),P0++[{PK,PV}]}).
+
+ca_list(Es,Vars) ->
   cfl(Es,{Vars,[]}).
 
 cfl([],O) -> O;
@@ -221,7 +231,7 @@ arg({call,_,F,Args}) -> guard({call,1,F,Args});
 arg({nil,_})         -> {list,[]};
 arg(L={cons,_,_,_})  -> {list,arg_list(L)};
 arg({tuple,_,Args})  -> {tuple,[arg(A)||A<-Args]};
-arg({map,_,Map})     -> {map,[{arg(K),arg(V)}||{map_field_assoc,_,K,V}<-Map]};
+arg({map,_,Map})     -> {map,[{arg(K),arg(V)}||{_,_,K,V}<-Map]};
 arg({bin,_,Bin})     -> {bin,eval_bin(Bin)};
 arg({T,_,Var})       -> {T,Var}.
 
