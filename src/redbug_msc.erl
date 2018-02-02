@@ -71,9 +71,6 @@ unpack_op(Op,As,Vars) ->
 
 unpack_var({map,M},Vars) ->
   maps:from_list([{unpack_var(K,Vars),unpack_var(V,Vars)}||{K,V}<-M]);
-unpack_var({bin,Bs},_) ->
-  {value,Bin,[]} = erl_eval:expr({bin,1,Bs},[]),
-  Bin;
 unpack_var({tuple,Es},Vars) ->
   {list_to_tuple([unpack_var(E,Vars)||E<-Es])};
 unpack_var({list,Es},Vars) ->
@@ -100,8 +97,6 @@ compile_args(As) ->
 
 ca_fun({map,Map},{Vars,O}) ->
   {Vars,O++[unpack_var({map,Map},Vars)]};
-ca_fun({bin,Bs},{Vars,O}) ->
-  {Vars,O++[unpack_var({bin,Bs},Vars)]};
 ca_fun({list,Es},{Vars,O}) ->
   {Vs,Ps} = ca_fun_list(Es,Vars),
   {Vs,O++[Ps]};
@@ -111,11 +106,7 @@ ca_fun({tuple,Es},{Vars,O}) ->
 ca_fun({var,'_'},{Vars,O}) ->
   {Vars,O++['_']};
 ca_fun({var,Var},{Vars,O}) ->
-  V =
-    case proplists:get_value(Var,Vars) of
-      undefined -> list_to_atom("\$"++integer_to_list(length(Vars)+1));
-      X -> X
-    end,
+  V = get_var(Var, Vars),
   {[{Var,V}|Vars],O++[V]};
 ca_fun({Type,Val},{Vars,O}) ->
   assert_type(Type,Val),
@@ -134,8 +125,14 @@ cfl([E1|E2],{V0,P0}) ->
   {V2,[P2]} = ca_fun(E2,{lists:usort(V0++V1),[]}),
   {lists:usort(V0++V1++V2),P0++[P1|P2]}.
 
+get_var(Var,Vars) ->
+  case proplists:get_value(Var,Vars) of
+    undefined -> list_to_atom("\$"++integer_to_list(length(Vars)+1));
+    X -> X
+  end.
+
 assert_type(Type,Val) ->
-  case lists:member(Type,[integer,atom,string,char]) of
+  case lists:member(Type,[integer,atom,string,char,bin]) of
     true -> ok;
     false-> exit({bad_type,{Type,Val}})
   end.
@@ -225,7 +222,12 @@ arg({nil,_})         -> {list,[]};
 arg(L={cons,_,_,_})  -> {list,arg_list(L)};
 arg({tuple,_,Args})  -> {tuple,[arg(A)||A<-Args]};
 arg({map,_,Map})     -> {map,[{arg(K),arg(V)}||{map_field_assoc,_,K,V}<-Map]};
+arg({bin,_,Bin})     -> {bin,eval_bin(Bin)};
 arg({T,_,Var})       -> {T,Var}.
+
+eval_bin(Bin) ->
+    {value,B,[]} = erl_eval:expr({bin,1,Bin},[]),
+    B.
 
 consa([],T)     -> T;
 consa([C],T)    -> {cons,1,{char,1,C},T};
@@ -251,5 +253,6 @@ assert(Fun,Tag) ->
     _:{this_is_too_confusing,C}  -> exit({syntax_error,{C,Tag}});
     _:{_,{error,{1,erl_parse,L}}}-> exit({syntax_error,{lists:flatten(L),Tag}});
     _:{unknown_action,A}         -> exit({syntax_error,{unknown_action,A}});
+    _:{unbound_var,Var}          -> exit({syntax_error,{unbound_var,Var}});
     _:R                          -> exit({R,Tag,erlang:get_stacktrace()})
   end.

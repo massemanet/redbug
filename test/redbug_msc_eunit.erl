@@ -411,7 +411,7 @@ t55_test() ->
   ?assert(
      unit(
        {"erlang:binary_to_list(<<1:3,_:5>>)",
-        unbound_var})).
+        syntax_error})).
 
 t56_test() ->
   ?assert(
