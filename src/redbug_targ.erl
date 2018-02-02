@@ -78,7 +78,7 @@ active(Cnf) ->
     {'EXIT',HostPid,_}  -> remote_stop(Cons,Cnf);
     {local_stop,R}      -> local_stop(HostPid,Cnf,R);
     {'EXIT',Cons,R}     -> local_stop(HostPid,Cnf,R);
-    _                   -> active(Cnf)
+    Error               -> local_stop(HostPid,Cnf,Error)
   end.
 
 local_stop(HostPid,Cnf,R) ->
