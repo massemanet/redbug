@@ -69,6 +69,8 @@ gd_fun({Op,V1,V2},{Vars,O}) ->               % binary
 unpack_op(Op,As,Vars) ->
   list_to_tuple([Op|[unpack_var(A,Vars)||A<-As]]).
 
+unpack_var({map,M},Vars) ->
+  maps:from_list([{unpack_var(K,Vars),unpack_var(V,Vars)}||{K,V}<-M]);
 unpack_var({bin,Bs},_) ->
   {value,Bin,[]} = erl_eval:expr({bin,1,Bs},[]),
   Bin;
@@ -96,9 +98,10 @@ compile_args('_') ->
 compile_args(As) ->
   lists:foldl(fun ca_fun/2,{[],[]},As).
 
+ca_fun({map,Map},{Vars,O}) ->
+  {Vars,O++[unpack_var({map,Map},Vars)]};
 ca_fun({bin,Bs},{Vars,O}) ->
-  {value,Bin,[]} = erl_eval:expr({bin,1,Bs},[]),
-  {Vars,O++[Bin]};
+  {Vars,O++[unpack_var({bin,Bs},Vars)]};
 ca_fun({list,Es},{Vars,O}) ->
   {Vs,Ps} = ca_fun_list(Es,Vars),
   {Vs,O++[Ps]};
@@ -221,6 +224,7 @@ arg({call,1,F,Args}) -> guard({call,1,F,Args});
 arg({nil,_})         -> {list,[]};
 arg(L={cons,_,_,_})  -> {list,arg_list(L)};
 arg({tuple,_,Args})  -> {tuple,[arg(A)||A<-Args]};
+arg({map,_,Map})     -> {map,[{arg(K),arg(V)}||{map_field_assoc,_,K,V}<-Map]};
 arg({T,_,Var})       -> {T,Var}.
 
 consa([],T)     -> T;

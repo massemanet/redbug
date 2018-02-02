@@ -413,6 +413,14 @@ t55_test() ->
        {"erlang:binary_to_list(<<1:3,_:5>>)",
         unbound_var})).
 
+t56_test() ->
+  ?assert(
+     unit(
+       {"maps:to_list(#{a=>b,c=>d})",
+        {{maps,to_list,1},
+         [{[#{a=>b,c=>d}],[],[]}],
+         [local]}})).
+
 unit({Str,MS}) ->
   try
     MS = redbug_msc:transform(Str),true
