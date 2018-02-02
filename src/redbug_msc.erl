@@ -178,21 +178,21 @@ body_fun(Str) ->
   fun() ->
       {done,{ok,Toks,1},[]} = erl_scan:tokens([],Str++". ",1),
       case erl_parse:parse_exprs(Toks) of
-        {ok,[{op,1,'/',{remote,1,{atom,1,M},{atom,1,F}},{integer,1,Ari}}]} ->
+        {ok,[{op,_,'/',{remote,_,{atom,_,M},{atom,_,F}},{integer,_,Ari}}]} ->
           {M,F,lists:duplicate(Ari,{var,'_'})}; % m:f/2
-        {ok,[{call,1,{remote,1,{atom,1,M},{atom,1,F}},Args}]} ->
+        {ok,[{call,_,{remote,_,{atom,_,M},{atom,_,F}},Args}]} ->
           {M,F,[arg(A) || A<-Args]};            % m:f(...)
-        {ok,[{call,1,{remote,1,{atom,1,M},{var,1,'_'}},Args}]} ->
+        {ok,[{call,_,{remote,_,{atom,_,M},{var,_,'_'}},Args}]} ->
           {M,' ',[arg(A) || A<-Args]};          % m:_(...)
-        {ok,[{call,1,{remote,1,{atom,1,M},{var,1,_}},Args}]} ->
+        {ok,[{call,_,{remote,_,{atom,_,M},{var,_,_}},Args}]} ->
           {M,' ',[arg(A) || A<-Args]};          % m:V(...)
-        {ok,[{remote,1,{atom,1,M},{atom,1,F}}]} ->
+        {ok,[{remote,_,{atom,_,M},{atom,_,F}}]} ->
           {M,F,'_'};                            % m:f
-        {ok,[{remote,1,{atom,1,M},{var,1,'_'}}]} ->
+        {ok,[{remote,_,{atom,_,M},{var,_,'_'}}]} ->
           {M,' ','_'};                          % m:_
-        {ok,[{remote,1,{atom,1,M},{var,1,_}}]} ->
+        {ok,[{remote,_,{atom,_,M},{var,_,_}}]} ->
           {M,' ','_'};                          % m:V
-        {ok,[{atom,1,M}]} ->
+        {ok,[{atom,_,M}]} ->
           {M,'_','_'};                          % m
         {ok,C} ->
           exit({this_is_too_confusing,C})
@@ -214,13 +214,13 @@ guards_fun(Str) ->
 disjunct_guard(Toks) ->
   [case T of {';',1} -> {'orelse',1}; _ -> T end||T<-Toks].
 
-guard({call,1,{atom,1,G},Args}) -> {G,[arg(A) || A<-Args]};   % function
-guard({op,1,Op,One,Two})        -> {Op,guard(One),guard(Two)};% unary op
-guard({op,1,Op,One})            -> {Op,guard(One)};           % binary op
+guard({call,_,{atom,_,G},Args}) -> {G,[arg(A) || A<-Args]};   % function
+guard({op,_,Op,One,Two})        -> {Op,guard(One),guard(Two)};% unary op
+guard({op,_,Op,One})            -> {Op,guard(One)};           % binary op
 guard(Guard)                    -> arg(Guard).                % variable
 
 arg({op,_,'++',{string,_,Str},Var}) -> {list,arg_list(consa(Str,Var))};
-arg({call,1,F,Args}) -> guard({call,1,F,Args});
+arg({call,_,F,Args}) -> guard({call,1,F,Args});
 arg({nil,_})         -> {list,[]};
 arg(L={cons,_,_,_})  -> {list,arg_list(L)};
 arg({tuple,_,Args})  -> {tuple,[arg(A)||A<-Args]};
