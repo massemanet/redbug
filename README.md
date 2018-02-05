@@ -64,6 +64,19 @@ So, an RTP looks something like this;
 
     "ets:lookup(T,hostname) when is_integer(T) -> stack"
 
+Note that bindings (like we're binding 'T' above) works as expected.
+So this RTP;
+
+    "maps:to_list(#{a:=T,c:=#{d:=T}})"
+
+will not trigger on this call;
+
+```maps:to_list(#{a=>b,c=>#{d=>e,f=>g}}).```
+
+but will trigger on this;
+
+```maps:to_list(#{a=>b,c=>#{d=>b,f=>g}})."```
+
 Opts: list({Opt,Val})
 
 general opts:
