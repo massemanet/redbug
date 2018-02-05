@@ -1,9 +1,77 @@
-commit f8ca85d6b55b51985c972a0ff5ef6c588599c9f8
+commit a857ace24d2f196efbba822e63099a26e9a249a9
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Tue Feb 6 00:13:55 2018 +0100
+
+    v1.2.0
+
+src/redbug.app.src
+
+commit 8eec2cfa394f61a11e1874a7e82593f56eaee270
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Feb 5 23:53:49 2018 +0100
+
+    maps are not supported in R16B. dropping support.
+
+.travis.yml
+
+commit 1591faaef033f387375023057bb9c90d03afd4f8
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Mon Feb 5 23:50:16 2018 +0100
+
+    docs
+
+README.md
+
+commit 935ae87e557621033d1a0a51fc03b8bfe15a2bee
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Feb 2 17:43:35 2018 +0100
+
+    allow binding of vars in map matches
+
+src/redbug_msc.erl
+test/redbug_msc_eunit.erl
+
+commit ccaa3d563332b6ad64e07b6575dd57d9dc70b117
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Feb 2 17:42:59 2018 +0100
+
+    simplify binary handling
+
+src/redbug_msc.erl
+test/redbug_msc_eunit.erl
+
+commit 1b9af91a1dd7618b3a76fd0cab16452d0ef88a38
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Feb 2 13:46:03 2018 +0100
+
+    more aggressive error handling
+
+src/redbug_targ.erl
+
+commit 53bd17cbff0d6dca677e6df45be47d0c168be035
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Feb 2 13:44:58 2018 +0100
+
+    cosmetic
+
+src/redbug_msc.erl
+
+commit 0bc3ffabbd91a799477126457031d21be6adf8f8
+Author: mats cronqvist <masse@cronqvi.st>
+Date:   Fri Feb 2 13:44:42 2018 +0100
+
+    add support for maps
+
+src/redbug_msc.erl
+test/redbug_msc_eunit.erl
+
+commit 4a971ed9f5f1cc9090a9c7ea322ffa0e7c0dc423
 Author: mats cronqvist <masse@cronqvi.st>
 Date:   Mon Jan 8 16:24:21 2018 +0100
 
     v1.1.2
 
+ChangeLog
 src/redbug.app.src
 
 commit 6212b5809c93076a445153b8764db364a247f7b5
