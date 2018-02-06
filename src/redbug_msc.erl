@@ -202,7 +202,7 @@ body_fun(Str) ->
         {ok,[{atom,_,M}]} ->
           {M,'_','_'};                          % m
         {ok,C} ->
-          exit({this_is_too_confusing,C})
+          exit({parse_error,C})
      end
   end.
 
@@ -226,20 +226,23 @@ guard({op,_,Op,One,Two})        -> {Op,guard(One),guard(Two)};% unary op
 guard({op,_,Op,One})            -> {Op,guard(One)};           % binary op
 guard(Guard)                    -> arg(Guard).                % variable
 
-arg({op,_,'++',{string,_,Str},Var}) -> {list,arg_list(consa(Str,Var))};
-arg({call,_,F,Args}) -> guard({call,1,F,Args});
-arg({nil,_})         -> {list,[]};
-arg(L={cons,_,_,_})  -> {list,arg_list(L)};
-arg({tuple,_,Args})  -> {tuple,[arg(A)||A<-Args]};
-arg({map,_,Map})     -> {map,[{arg(K),arg(V)}||{_,_,K,V}<-Map]};
-arg({bin,_,Bin})     -> {bin,eval_bin(Bin)};
-arg({T,_,Var})       -> {T,Var}.
+arg({op,_,'++',A1,A2}) -> plusplus(A1,A2);
+arg({call,_,F,Args})   -> guard({call,1,F,Args});
+arg({nil,_})           -> {list,[]};
+arg(L={cons,_,_,_})    -> {list,arg_list(L)};
+arg({tuple,_,Args})    -> {tuple,[arg(A)||A<-Args]};
+arg({map,_,Map})       -> {map,[{arg(K),arg(V)}||{_,_,K,V}<-Map]};
+arg({bin,_,Bin})       -> {bin,eval_bin(Bin)};
+arg({T,_,Var})         -> {T,Var}.
+
+plusplus({string,_,[]},Var) -> arg(Var);
+plusplus({string,_,St},Var) -> {list,arg_list(consa(St,Var))};
+plusplus(A1,A2) -> exit({illegal_plusplus,{A1,A2}}).
 
 eval_bin(Bin) ->
     {value,B,[]} = erl_eval:expr({bin,1,Bin},[]),
     B.
 
-consa([],T)     -> T;
 consa([C],T)    -> {cons,1,{char,1,C},T};
 consa([C|Cs],T) -> {cons,1,{char,1,C},consa(Cs,T)}.
 
@@ -260,7 +263,7 @@ acts() ->
 assert(Fun,Tag) ->
   try Fun()
   catch
-    _:{this_is_too_confusing,C}  -> exit({syntax_error,{C,Tag}});
+    _:{parse_error,C}  -> exit({syntax_error,{C,Tag}});
     _:{_,{error,{1,erl_parse,L}}}-> exit({syntax_error,{lists:flatten(L),Tag}});
     _:{unknown_action,A}         -> exit({syntax_error,{unknown_action,A}});
     _:{unbound_var,Var}          -> exit({syntax_error,{unbound_var,Var}});
