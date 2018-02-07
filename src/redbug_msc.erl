@@ -84,7 +84,7 @@ unpack_var({string,S},_) ->
   S;
 unpack_var({var,Var},Vars) ->
   case proplists:get_value(Var,Vars) of
-    undefined -> throw({unbound_variable,Var});
+    undefined -> throw({unbound_var,Var});
     V -> V
   end;
 unpack_var({Op,As},Vars) when is_list(As) ->
@@ -209,8 +209,8 @@ body(Str) ->
         {error,{_,erl_parse,L}} ->
           throw({parse_error,lists:flatten(L)})
      end;
-    {error,R} ->
-      throw({scan_error,R})
+    _ ->
+      throw({scan_error,Str})
   end.
 
 guards(Str) ->
@@ -261,8 +261,12 @@ arg_list({nil,_})      -> [];
 arg_list(V)            -> arg(V).
 
 eval_bin(Bin) ->
-  {value,B,[]} = erl_eval:expr({bin,1,Bin},[]),
-  B.
+  try
+    {value,B,[]} = erl_eval:expr({bin,1,Bin},[]),
+    B
+  catch
+    _:R -> throw({bad_binary,R})
+  end.
 
 actions(Str) ->
   Acts = string:tokens(Str,";,"),

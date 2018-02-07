@@ -8,394 +8,395 @@
 
 unit(Str) ->
   try redbug_msc:transform(Str)
-  catch _:{MS,_} -> MS
+  catch _:R -> R
   end.
 
 msc_test_() ->
   [?_assertEqual(
-      unit("f:c(<<>>)"),
       {{f,c,1},
        [{[<<>>],[],[]}],
-       [local]}),
+       [local]},
+      unit("f:c(<<>>)")),
 
    ?_assertEqual(
-      unit("f:c(0.1)"),
-      bad_type),
+      {syntax_error,{bad_type,{float,0.1}}},
+      unit("f:c(0.1)")),
 
    ?_assertEqual(
-      unit("f:c(<0.0.1>)"),
-      syntax_error),
+      {syntax_error,{parse_error,"syntax error before: '<'"}},
+      unit("f:c(<0.0.1>)")),
 
    ?_assertEqual(
-      unit(1),
-      illegal_input),
+      {syntax_error,{illegal_input,1}},
+      unit(1)),
 
    ?_assertEqual(
-      unit(erlang),
       {{erlang,'_','_'},
        [{'_',[],[]}],
-       [local]}),
+       [local]},
+      unit(erlang)),
 
    ?_assertEqual(
-      unit("a when element(1,'$_')=/=b"),
       {{a,'_','_'},
        [{'_',[{'=/=',{element,1,'$_'},b}],[]}],
-       [local]}),
+       [local]},
+      unit("a when element(1,'$_')=/=b")),
 
    ?_assertEqual(
-      unit("erlang when tl(hd('$_'))=={}"),
       {{erlang,'_','_'},
        [{'_',[{'==',{tl,{hd,'$_'}},{{}}}],[]}],
-       [local]}),
+       [local]},
+      unit("erlang when tl(hd('$_'))=={}")),
 
    ?_assertEqual(
-      unit("a:b when element(1,'$_')=/=c"),
       {{a,b,'_'},
        [{'_',[{'=/=',{element,1,'$_'},c}],[]}],
-       [local]}),
+       [local]},
+      unit("a:b when element(1,'$_')=/=c")),
 
    ?_assertEqual(
-      unit("a"),
       {{a,'_','_'},
        [{'_',[],[]}],
-       [local]}),
+       [local]},
+      unit("a")),
 
    ?_assertEqual(
-      unit("a->stack"),
       {{a,'_','_'},
        [{'_',[],[{message,{process_dump}}]}],
-       [local]}),
+       [local]},
+      unit("a->stack")),
 
    ?_assertEqual(
-      unit("a:b"),
       {{a,b,'_'},
        [{'_',[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b")),
 
    ?_assertEqual(
-      unit("a:b->return "),
       {{a,b,'_'},
        [{'_',[],[{exception_trace}]}],
-       [local]}),
+       [local]},
+      unit("a:b->return ")),
 
    ?_assertEqual(
-      unit("a:b/2"),
       {{a,b,2},
        [{['_','_'],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b/2")),
 
    ?_assertEqual(
-      unit("a:b/2->return"),
       {{a,b,2},
        [{['_','_'],[],[{exception_trace}]}],
-       [local]}),
+       [local]},
+      unit("a:b/2->return")),
 
    ?_assertEqual(
-      unit("a:b(X,Y)"),
       {{a,b,2},
        [{['$1','$2'],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,Y)")),
 
    ?_assertEqual(
-      unit("a:b(_,_)"),
       {{a,b,2},
        [{['_','_'],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(_,_)")),
 
    ?_assertEqual(
-      unit("a:b(X,X)"),
       {{a,b,2},
        [{['$1','$1'],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,X)")),
 
    ?_assertEqual(
-      unit("a:b(X,y)"),
       {{a,b,2},
        [{['$1',y],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,y)")),
 
    ?_assertEqual(
-      unit("a:foo()when a==b"),
       {{a,foo,0},
        [{[],[{'==',a,b}],[]}],
-       [local]}),
+       [local]},
+      unit("a:foo()when a==b")),
 
    ?_assertEqual(
-      unit("a:foo when a==b"),
       {{a,foo,'_'},
        [{'_',[{'==',a,b}],[]}],
-       [local]}),
+       [local]},
+      unit("a:foo when a==b")),
 
    ?_assertEqual(
-      unit("a:b(X,1)"),
       {{a,b,2},
        [{['$1',1],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,1)")),
 
    ?_assertEqual(
-      unit("a:b(X,\"foo\")"),
       {{a,b,2},
        [{['$1',"foo"],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,\"foo\")")),
 
    ?_assertEqual(
-      unit("x:y({A,{B,A}},A)"),
       {{x,y,2},
        [{[{'$1',{'$2','$1'}},'$1'],[],[]}],
-       [local]}),
+       [local]},
+      unit("x:y({A,{B,A}},A)")),
 
    ?_assertEqual(
-      unit("x:y(A,[A,{B,[B,A]},A],B)"),
       {{x,y,3},
        [{['$1',['$1',{'$2',['$2','$1']},'$1'],'$2'],[],[]}],
-       [local]}),
+       [local]},
+      unit("x:y(A,[A,{B,[B,A]},A],B)")),
 
    ?_assertEqual(
-      unit("a:b(X,y)when is_atom(Y)"),
-      unbound_variable),
+      {syntax_error,{unbound_var,'Y'}},
+      unit("a:b(X,y)when is_atom(Y)")),
 
    ?_assertEqual(
-      unit("x:c([string])"),
-      {{x,c,1},[{[[string]],[],[]}],
-       [local]}),
+      {{x,c,1},
+       [{[[string]],[],[]}],
+       [local]},
+      unit("x:c([string])")),
 
    ?_assertEqual(
-      unit("x(s)"),
-      syntax_error),
+      {syntax_error,{parse_error,[{call,1,{atom,1,x},[{atom,1,s}]}]}},
+      unit("x(s)")),
 
    ?_assertEqual(
-      unit("x-s"),
-      syntax_error),
+      {syntax_error,{parse_error,[{op,1,'-',{atom,1,x},{atom,1,s}}]}},
+      unit("x-s")),
 
    ?_assertEqual(
-      unit("x:c(S)when S==x;S==y"),
       {{x,c,1},
        [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
-       [local]}),
+       [local]},
+      unit("x:c(S)when S==x;S==y")),
 
    ?_assertEqual(
-      unit("x:c(S)when (S==x)or(S==y)"),
       {{x,c,1},
        [{['$1'],[{'or',{'==','$1',x},{'==','$1',y}}],[]}],
-       [local]}),
+       [local]},
+      unit("x:c(S)when (S==x)or(S==y)")),
 
    ?_assertEqual(
-      unit("a:b(X,Y)when is_record(X,rec) and (Y==0), (X==z)"),
       {{a,b,2},
        [{['$1','$2'],
          [{'and',{is_record,'$1',rec},{'==','$2',0}},{'==','$1',z}],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,Y)when is_record(X,rec) and (Y==0), (X==z)")),
 
    ?_assertEqual(
-      unit("x:y(z)->bla"),
-      syntax_error),
+      {syntax_error,{unknown_action,"bla"}},
+      unit("x:y(z)->bla")),
 
    ?_assertEqual(
-      unit("a:b(X,y)when not is_atom(X)"),
       {{a,b,2},
        [{['$1',y],[{'not',{is_atom,'$1'}}],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,y)when not is_atom(X)")),
 
    ?_assertEqual(
-      unit("a:b(X,Y)when X==1,Y=/=a"),
       {{a,b,2},
        [{['$1','$2'],[{'==','$1',1},{'=/=','$2',a}],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,Y)when X==1,Y=/=a")),
 
    ?_assertEqual(
-      unit("a:b(X,y)when not is_atom(X) -> return"),
       {{a,b,2},
        [{['$1',y],[{'not',{is_atom,'$1'}}],[{exception_trace}]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,y)when not is_atom(X) -> return")),
 
    ?_assertEqual(
-      unit("a:b(X,y)when element(1,X)==foo, (X==z)"),
       {{a,b,2},
        [{['$1',y],[{'==',{element,1,'$1'},foo},{'==','$1',z}],[]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,y)when element(1,X)==foo, (X==z)")),
 
    ?_assertEqual(
-      unit("a:b(X,X) -> return;stack"),
       {{a,b,2},
        [{['$1','$1'],[],[{exception_trace},{message,{process_dump}}]}],
-       [local]}),
+       [local]},
+      unit("a:b(X,X) -> return;stack")),
 
    ?_assertEqual(
-      unit("x:y(A,[A,B,C])when A==B,is_atom(C)"),
       {{x,y,2},
        [{['$1',['$1','$2','$3']],[{'==','$1','$2'},{is_atom,'$3'}],[]}],
-       [local]}),
+       [local]},
+      unit("x:y(A,[A,B,C])when A==B,is_atom(C)")),
 
    ?_assertEqual(
-      unit("x:y([A,B,C])when A=/=B,is_atom(C)"),
       {{x,y,1},
        [{[['$1','$2','$3']],[{'=/=','$1','$2'},{is_atom,'$3'}],[]}],
-       [local]}),
+       [local]},
+      unit("x:y([A,B,C])when A=/=B,is_atom(C)")),
 
    ?_assertEqual(
-      unit("a:b([A,B,T])when B==T"),
       {{a,b,1},
        [{[['$1','$2','$3']],[{'==','$2','$3'}],[]}],
-       [local]}),
+       [local]},
+      unit("a:b([A,B,T])when B==T")),
 
    ?_assertEqual(
-      unit("x:y([C|{D}])when is_atom(C)"),
       {{x,y,1},
        [{[['$1'|{'$2'}]],[{is_atom,'$1'}],[]}],
-       [local]}),
+       [local]},
+      unit("x:y([C|{D}])when is_atom(C)")),
 
    ?_assertEqual(
-      unit("lists:reverse(\"ab\"++_)"),
       {{lists,reverse,1},
        [{[[97,98|'_']],[],[]}],
-       [local]}),
+       [local]},
+      unit("lists:reverse(\"ab\"++_)")),
 
    ?_assertEqual(
-      unit("lists:reverse(\"\"++A) when A==\"\""),
       {{lists,reverse,1},
-       [{[[[]|'$1']],[{'==','$1',[]}],[]}],
-       [local]}),
+       [{['$1'],[{'==','$1',[]}],[]}],
+       [local]},
+      unit("lists:reverse(\"\"++A) when A==\"\"")),
 
    ?_assertEqual(
-      unit("lists:reverse(\"ab\"++\"\")"),
       {{lists,reverse,1},
        [{["ab"],[],[]}],
-       [local]}),
+       [local]},
+      unit("lists:reverse(\"ab\"++\"\")")),
 
    ?_assertEqual(
-      unit("lists:reverse(\"ab\"++C)when 3<length(C)"),
       {{lists,reverse,1},
        [{[[97,98|'$1']],[{'<',3,{length,'$1'}}],[]}],
-       [local]}),
+       [local]},
+      unit("lists:reverse(\"ab\"++C)when 3<length(C)")),
 
    ?_assertEqual(
-      unit("a:b([$a,$b|C])"),
       {{a,b,1},[{[[97,98|'$1']],[],[]}],
-       [local]}),
+       [local]},
+      unit("a:b([$a,$b|C])")),
 
    ?_assertEqual(
-      unit("a:_(a)"),
       {{a,'_','_'},
        [{[a],[],[]}],
-       [global]}),
+       [global]},
+      unit("a:_(a)")),
 
    ?_assertEqual(
-      unit("a:_"),
       {{a,'_','_'},[{'_',[],[]}],
-       [global]}),
+       [global]},
+      unit("a:_")),
 
    ?_assertEqual(
-      unit("a:_->return"),
       {{a,'_','_'},
        [{'_',[],[{exception_trace}]}],
-       [global]}),
+       [global]},
+      unit("a:_->return")),
 
    ?_assertEqual(
-      unit("erlang:_({A}) when hd(A)=={}"),
       {{erlang,'_','_'},
        [{[{'$1'}],[{'==',{hd,'$1'},{{}}}],[]}],
-       [global]}),
+       [global]},
+      unit("erlang:_({A}) when hd(A)=={}")),
 
    ?_assertEqual(
-      unit("a:X([]) -> return,stack"),
       {{a,'_','_'},
        [{[[]],[],[{exception_trace},{message,{process_dump}}]}],
-       [global]}),
+       [global]},
+      unit("a:X([]) -> return,stack")),
 
    ?_assertEqual(
-      unit("lists:X([a])"),
       {{lists,'_','_'},
        [{[[a]],[],[]}],
-       [global]}),
+       [global]},
+      unit("lists:X([a])")),
 
    ?_assertEqual(
-      unit("lists:X(A) when is_list(A)"),
       {{lists,'_','_'},
        [{['$1'],[{is_list,'$1'}],[]}],
-       [global]}),
+       [global]},
+      unit("lists:X(A) when is_list(A)")),
 
    ?_assertEqual(
-      unit("lists:X"),
       {{lists,'_','_'},
        [{'_',[],[]}],
-       [global]}),
+       [global]},
+      unit("lists:X")),
 
    ?_assertEqual(
-      unit("x:c(A)when [A,A] == [A]++[A]"),
       {{x,c,1},
        [{['$1'],[{'==',['$1','$1'],{'++',['$1'],['$1']}}],[]}],
-       [local]}),
+       [local]},
+      unit("x:c(A)when [A,A] == [A]++[A]")),
 
    ?_assertEqual(
-      unit("x:c(Aw)hen [A,A] == [A]++[A]"),
-      syntax_error),
+      {syntax_error,{parse_error,"syntax error before: hen"}},
+      unit("x:c(Aw)hen [A,A] == [A]++[A]")),
 
    ?_assertEqual(
-      unit("f:m(<<1,\"abc\">>)"),
       {{f,m,1},
        [{[<<1,$a,$b,$c>>],[],[]}],
-       [local]}),
+       [local]},
+      unit("f:m(<<1,\"abc\">>)")),
 
    ?_assertEqual(
-      unit("erlang:binary_to_list(A)when A==<<48>>"),
       {{erlang,binary_to_list,1},
        [{['$1'],[{'==','$1',<<"0">>}],[]}],
-       [local]}),
+       [local]},
+      unit("erlang:binary_to_list(A)when A==<<48>>")),
 
    ?_assertEqual(
-      unit("erlang:binary_to_list(<<48>>)"),
       {{erlang,binary_to_list,1},
        [{[<<"0">>],[],[]}],
-       [local]}),
+       [local]},
+      unit("erlang:binary_to_list(<<48>>)")),
 
    ?_assertEqual(
-      unit("erlang:binary_to_list(D) when D==\"abc\""),
       {{erlang,binary_to_list,1},
        [{['$1'],[{'==','$1',"abc"}],[]}],
-       [local]}),
+       [local]},
+      unit("erlang:binary_to_list(D) when D==\"abc\"")),
 
    ?_assertEqual(
-      unit("maps:to_list(D) when D==#{a:=b}"),
       {{maps,to_list,1},
        [{['$1'],[{'==','$1',#{a=>b}}],[]}],
-       [local]}),
+       [local]},
+      unit("maps:to_list(D) when D==#{a:=b}")),
 
    ?_assertEqual(
-      unit("erlang:binary_to_list(<<\"0\">>)"),
       {{erlang,binary_to_list,1},
        [{[<<"0">>],[],[]}],
-       [local]}),
+       [local]},
+      unit("erlang:binary_to_list(<<\"0\">>)")),
 
    ?_assertEqual(
-      unit("erlang:binary_to_list(<<1:3,1:5>>)"),
       {{erlang,binary_to_list,1},
        [{[<<"!">>],[],[]}],
-       [local]}),
+       [local]},
+      unit("erlang:binary_to_list(<<1:3,1:5>>)")),
 
    ?_assertEqual(
-      unit("erlang:binary_to_list(<<1:3,_:5>>)"),
-      syntax_error),
+      {syntax_error,{bad_binary,{unbound_var,'_'}}},
+      unit("erlang:binary_to_list(<<1:3,_:5>>)")),
 
    ?_assertEqual(
-      unit("maps:to_list(#{a=>b,c=>d})"),
       {{maps,to_list,1},
        [{[#{a=>b,c=>d}],[],[]}],
-       [local]}),
+       [local]},
+      unit("maps:to_list(#{a=>b,c=>d})")),
 
    ?_assertEqual(
-      unit("maps:to_list(#{a=>b,c=>D})when D==e"),
       {{maps,to_list,1},
        [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
-       [local]}),
+       [local]},
+      unit("maps:to_list(#{a=>b,c=>D})when D==e")),
 
    ?_assertEqual(
-      unit("maps:to_list(#{a:=b,c:=D})when D==e"),
       {{maps,to_list,1},
        [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
-       [local]}),
+       [local]},
+      unit("maps:to_list(#{a:=b,c:=D})when D==e")),
 
    ?_assertEqual(
-      unit("maps:to_list(D)when is_map(D)"),
       {{maps,to_list,1},
        [{['$1'],[{'is_map','$1'}],[]}],
-       [local]})].
+       [local]},
+      unit("maps:to_list(D)when is_map(D)"))].
