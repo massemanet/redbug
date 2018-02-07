@@ -13,6 +13,7 @@
 -export([stop/0]).
 
 -define(log(T),log([process_info(self(),current_function),{line,?LINE}],T)).
+log(HD,T) -> error_logger:info_report(HD++T).
 
 %% the redbug server data structure
 %% most can be set in the input proplist
@@ -540,9 +541,3 @@ human(E,M) ->
 
 flat(Format,Args) ->
   lists:flatten(io_lib:fwrite(Format,Args)).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% logging
-
-log(HD,T) when ?is_string(T) -> log(HD,[T]);
-log(HD,T) -> error_logger:info_report(HD++T).
