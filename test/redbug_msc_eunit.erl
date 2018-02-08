@@ -13,12 +13,6 @@ unit(Str) ->
 
 msc_test_() ->
   [?_assertEqual(
-      {{f,c,1},
-       [{[<<>>],[],[]}],
-       [local]},
-      unit("f:c(<<>>)")),
-
-   ?_assertEqual(
       {syntax_error,{bad_type,{float,0.1}}},
       unit("f:c(0.1)")),
 
@@ -29,6 +23,52 @@ msc_test_() ->
    ?_assertEqual(
       {syntax_error,{illegal_input,1}},
       unit(1)),
+
+   ?_assertEqual(
+      {syntax_error,{unbound_var,'Y'}},
+      unit("a:b(X,y)when is_atom(Y)")),
+
+   ?_assertEqual(
+      {syntax_error,{parse_error,[{call,1,{atom,1,x},[{atom,1,s}]}]}},
+      unit("x(s)")),
+
+   ?_assertEqual(
+      {syntax_error,{parse_error,[{op,1,'-',{atom,1,x},{atom,1,s}}]}},
+      unit("x-s")),
+
+   ?_assertEqual(
+      {syntax_error,{unknown_action,"bla"}},
+      unit("x:y(z)->bla")),
+
+   ?_assertEqual(
+      {syntax_error,{parse_error,"syntax error before: hen"}},
+      unit("x:c(Aw)hen [A,A] == [A]++[A]")),
+
+   ?_assertEqual(
+      {syntax_error,{parse_error,"syntax error before: '.'"}},
+      unit("x:c(Aw)when [")),
+
+   ?_assertEqual(
+      {syntax_error,{bad_binary,{unbound_var,'_'}}},
+      unit("erlang:binary_to_list(<<1:3,_:5>>)")),
+
+   ?_assertEqual(
+      {syntax_error,{illegal_plusplus,{{var,1,'A'},{var,1,'B'}}}},
+      unit("m:f(A++B)")),
+
+   ?_assertEqual(
+      {syntax_error,{scan_error,"m'"}},
+      unit("m'")),
+
+   ?_assertEqual(
+      {syntax_error,{scan_error,"'"}},
+      unit("m:f when '")),
+
+   ?_assertEqual(
+      {{f,c,1},
+       [{[<<>>],[],[]}],
+       [local]},
+      unit("f:c(<<>>)")),
 
    ?_assertEqual(
       {{erlang,'_','_'},
@@ -151,22 +191,10 @@ msc_test_() ->
       unit("x:y(A,[A,{B,[B,A]},A],B)")),
 
    ?_assertEqual(
-      {syntax_error,{unbound_var,'Y'}},
-      unit("a:b(X,y)when is_atom(Y)")),
-
-   ?_assertEqual(
       {{x,c,1},
        [{[[string]],[],[]}],
        [local]},
       unit("x:c([string])")),
-
-   ?_assertEqual(
-      {syntax_error,{parse_error,[{call,1,{atom,1,x},[{atom,1,s}]}]}},
-      unit("x(s)")),
-
-   ?_assertEqual(
-      {syntax_error,{parse_error,[{op,1,'-',{atom,1,x},{atom,1,s}}]}},
-      unit("x-s")),
 
    ?_assertEqual(
       {{x,c,1},
@@ -186,10 +214,6 @@ msc_test_() ->
          [{'and',{is_record,'$1',rec},{'==','$2',0}},{'==','$1',z}],[]}],
        [local]},
       unit("a:b(X,Y)when is_record(X,rec) and (Y==0), (X==z)")),
-
-   ?_assertEqual(
-      {syntax_error,{unknown_action,"bla"}},
-      unit("x:y(z)->bla")),
 
    ?_assertEqual(
       {{a,b,2},
@@ -328,10 +352,6 @@ msc_test_() ->
       unit("x:c(A)when [A,A] == [A]++[A]")),
 
    ?_assertEqual(
-      {syntax_error,{parse_error,"syntax error before: hen"}},
-      unit("x:c(Aw)hen [A,A] == [A]++[A]")),
-
-   ?_assertEqual(
       {{f,m,1},
        [{[<<1,$a,$b,$c>>],[],[]}],
        [local]},
@@ -372,10 +392,6 @@ msc_test_() ->
        [{[<<"!">>],[],[]}],
        [local]},
       unit("erlang:binary_to_list(<<1:3,1:5>>)")),
-
-   ?_assertEqual(
-      {syntax_error,{bad_binary,{unbound_var,'_'}}},
-      unit("erlang:binary_to_list(<<1:3,_:5>>)")),
 
    ?_assertEqual(
       {{maps,to_list,1},
