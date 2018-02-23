@@ -11,15 +11,17 @@
 
 -export([transform/1]).
 
--define(is_string(Str),
-        (Str=="" orelse (9=<hd(Str) andalso hd(Str)=<255))).
-
 transform(E) ->
-  compile(parse(to_string(E))).
+  try
+    compile(parse(to_string(E)))
+  catch
+    throw:{R,Info} -> exit({syntax_error,{R,Info}})
+  end.
 
+-define(is_string(Str), (Str=="" orelse (9=<hd(Str) andalso hd(Str)=<255))).
 to_string(A) when is_atom(A)    -> atom_to_list(A);
 to_string(S) when ?is_string(S) -> S;
-to_string(X)                    -> exit({illegal_input,X}).
+to_string(X)                    -> throw({illegal_input,X}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% compiler
@@ -27,69 +29,21 @@ to_string(X)                    -> exit({illegal_input,X}).
 %% i.e. the args to erlang:trace_pattern/3
 
 compile({Mod,F,As,Gs,Acts}) ->
-  {Fun,Arg}   = chk_fa(F,As),
+  {Fun,Arg}   = compile_function(F,As),
   {Vars,Args} = compile_args(As),
   Guards      = compile_guards(Gs,Vars),
   Actions     = compile_acts(Acts),
   Flags       = compile_flags(F,Acts),
   {{Mod,Fun,Arg},[{Args,Guards,Actions}],Flags}.
 
-chk_fa(' ',_) -> {'_','_'};
-chk_fa(F,'_') -> {F,'_'};
-chk_fa(F,As)  -> {F,length(As)}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% compile function name
+compile_function(' ',_) -> {'_','_'};
+compile_function(F,'_') -> {F,'_'};
+compile_function(F,As)  -> {F,length(As)}.
 
-compile_flags(F,Acts) ->
-  LG =
-    case F of
-      ' ' -> global;
-      _   -> local
-    end,
-  lists:foldr(fun(E,A)->try [fl_fun(E)|A] catch _:_ -> A end end,[LG],Acts).
-
-fl_fun("count") -> call_count;
-fl_fun("time")  -> call_time.
-
-compile_acts(As) ->
-  lists:foldr(fun(E,A)->try [ac_fun(E)|A] catch _:_ -> A end end,[],As).
-
-ac_fun("stack") -> {message,{process_dump}};
-ac_fun("return")-> {exception_trace}.
-
-compile_guards(Gs,Vars) ->
-  {Vars,O} = lists:foldr(fun gd_fun/2,{Vars,[]},Gs),
-  O.
-
-gd_fun({Op,As},{Vars,O}) when is_list(As) -> % function
-  {Vars,[unpack_op(Op,As,Vars)|O]};
-gd_fun({Op,V},{Vars,O}) ->                   % unary
-  {Vars,[{Op,unpack_var(V,Vars)}|O]};
-gd_fun({Op,V1,V2},{Vars,O}) ->               % binary
-  {Vars,[{Op,unpack_var(V1,Vars),unpack_var(V2,Vars)}|O]}.
-
-unpack_op(Op,As,Vars) ->
-  list_to_tuple([Op|[unpack_var(A,Vars)||A<-As]]).
-
-unpack_var({map,M},Vars) ->
-  maps:from_list([{unpack_var(K,Vars),unpack_var(V,Vars)}||{K,V}<-M]);
-unpack_var({tuple,Es},Vars) ->
-  {list_to_tuple([unpack_var(E,Vars)||E<-Es])};
-unpack_var({list,Es},Vars) ->
-  [unpack_var(E,Vars)||E<-Es];
-unpack_var({string,S},_) ->
-  S;
-unpack_var({var,Var},Vars) ->
-  case proplists:get_value(Var,Vars) of
-    undefined -> exit({unbound_variable,Var});
-    V -> V
-  end;
-unpack_var({Op,As},Vars) when is_list(As) ->
-  unpack_op(Op,As,Vars);
-unpack_var({Op,V1,V2},Vars) ->
-  unpack_op(Op,[V1,V2],Vars);
-unpack_var({Type,Val},_) ->
-  assert_type(Type,Val),
-  Val.
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% compile argument list
 compile_args('_') ->
   {[{'$_','$_'}],'_'};
 compile_args(As) ->
@@ -141,10 +95,68 @@ get_var(Var,Vars) ->
     X -> X
   end.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% compile guards
+compile_guards(Gs,Vars) ->
+  {Vars,O} = lists:foldr(fun gd_fun/2,{Vars,[]},Gs),
+  O.
+
+gd_fun({Op,As},{Vars,O}) when is_list(As) -> % function
+  {Vars,[unpack_op(Op,As,Vars)|O]};
+gd_fun({Op,V},{Vars,O}) ->                   % unary
+  {Vars,[{Op,unpack_var(V,Vars)}|O]};
+gd_fun({Op,V1,V2},{Vars,O}) ->               % binary
+  {Vars,[{Op,unpack_var(V1,Vars),unpack_var(V2,Vars)}|O]}.
+
+unpack_op(Op,As,Vars) ->
+  list_to_tuple([Op|[unpack_var(A,Vars)||A<-As]]).
+
+unpack_var({map,M},Vars) ->
+  maps:from_list([{unpack_var(K,Vars),unpack_var(V,Vars)}||{K,V}<-M]);
+unpack_var({tuple,Es},Vars) ->
+  {list_to_tuple([unpack_var(E,Vars)||E<-Es])};
+unpack_var({list,Es},Vars) ->
+  [unpack_var(E,Vars)||E<-Es];
+unpack_var({string,S},_) ->
+  S;
+unpack_var({var,Var},Vars) ->
+  case proplists:get_value(Var,Vars) of
+    undefined -> throw({unbound_var,Var});
+    V -> V
+  end;
+unpack_var({Op,As},Vars) when is_list(As) ->
+  unpack_op(Op,As,Vars);
+unpack_var({Op,V1,V2},Vars) ->
+  unpack_op(Op,[V1,V2],Vars);
+unpack_var({Type,Val},_) ->
+  assert_type(Type,Val),
+  Val.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% compile trace flags
+compile_flags(F,Acts) ->
+  LG =
+    case F of
+      ' ' -> global;
+      _   -> local
+    end,
+  lists:foldr(fun(E,A)->try [fl_fun(E)|A] catch _:_ -> A end end,[LG],Acts).
+
+fl_fun("count") -> call_count;
+fl_fun("time")  -> call_time.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% compile actions
+compile_acts(As) ->
+  lists:foldr(fun(E,A)->try [ac_fun(E)|A] catch _:_ -> A end end,[],As).
+
+ac_fun("stack") -> {message,{process_dump}};
+ac_fun("return")-> {exception_trace}.
+
 assert_type(Type,Val) ->
   case lists:member(Type,[integer,atom,string,char,bin]) of
     true -> ok;
-    false-> exit({bad_type,{Type,Val}})
+    false-> throw({bad_type,{Type,Val}})
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -156,34 +168,34 @@ assert_type(Type,Val) ->
 %% returns
 %%   {atom(M),atom(F),list(Arg)|atom('_'),list(Guard),list(Action)}
 parse(Str) ->
-  {Body,Guard,Action} = assert(split_fun(Str),{split_string,Str}),
-  {M,F,A}             = assert(body_fun(Body),{parse_body,Str}),
-  Guards              = assert(guards_fun(Guard),{parse_guards,Str}),
-  Actions             = assert(actions_fun(Action),{parse_actions,Str}),
+  {Body,Guard,Action} = split(Str),
+  {M,F,A}             = body(Body),
+  Guards              = guards(Guard),
+  Actions             = actions(Action),
   {M,F,A,Guards,Actions}.
 
 %% split the input string in three parts; body, guards, actions
 %% we parse them separately
-split_fun(Str) ->
-  fun() ->
-      % strip off the actions, if any
-      {St,Action} =
-        case re:run(Str,"^(.+)->\\s*([a-z;,]+)\\s*\$",[{capture,[1,2],list}]) of
-          {match,[Z,A]} -> {Z,A};
-          nomatch       -> {Str,""}
-        end,
-      % strip off the guards, if any
-      {Body,Guard} =
-        case re:run(St,"^(.+[\\s)])+when\\s(.+)\$",[{capture,[1,2],list}]) of
-          {match,[Y,G]} -> {Y,G};
-          nomatch       -> {St,""}
-        end,
-      {Body,Guard,Action}
-  end.
+split(Str) ->
+  %% strip off the actions, if any
+  {St,Action} =
+    case re:run(Str,"^(.+)->\\s*([a-z;,]+)\\s*\$",[{capture,[1,2],list}]) of
+      {match,[Z,A]} -> {Z,A};
+      nomatch       -> {Str,""}
+    end,
+  %% strip off the guards, if any
+  {Body,Guard} =
+    case re:run(St,"^(.+[\\s)])+when\\s(.+)\$",[{capture,[1,2],list}]) of
+      {match,[Y,G]} -> {Y,G};
+      nomatch       -> {St,""}
+    end,
+  {Body,Guard,Action}.
 
-body_fun(Str) ->
-  fun() ->
-      {done,{ok,Toks,1},[]} = erl_scan:tokens([],Str++". ",1),
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% parse body
+body(Str) ->
+  case erl_scan:tokens([],Str++". ",1) of
+    {done,{ok,Toks,1},[]} ->
       case erl_parse:parse_exprs(Toks) of
         {ok,[{op,_,'/',{remote,_,{atom,_,M},{atom,_,F}},{integer,_,Ari}}]} ->
           {M,F,lists:duplicate(Ari,{var,'_'})}; % m:f/2
@@ -202,44 +214,64 @@ body_fun(Str) ->
         {ok,[{atom,_,M}]} ->
           {M,'_','_'};                          % m
         {ok,C} ->
-          exit({this_is_too_confusing,C})
-     end
+          throw({parse_error,C});
+        {error,{_,erl_parse,L}} ->
+          throw({parse_error,lists:flatten(L)})
+     end;
+    _ ->
+      throw({scan_error,Str})
   end.
 
-guards_fun(Str) ->
-  fun() ->
-      case Str of
-        "" -> [];
-        _ ->
-          {done,{ok,Toks,1},[]} = erl_scan:tokens([],Str++". ",1),
-          {ok,Guards} = erl_parse:parse_exprs(disjunct_guard(Toks)),
-          [guard(G)||G<-Guards]
-      end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% parse guards
+guards("") -> "";
+guards(Str) ->
+  case erl_scan:tokens([],Str++". ",1) of
+    {done,{ok,Toks,1},[]} ->
+      case erl_parse:parse_exprs(disjunct_guard(Toks)) of
+        {ok,Guards} ->
+          [guard(G)||G<-Guards];
+        {error,{_,erl_parse,L}} ->
+          throw({parse_error,lists:flatten(L)})
+      end;
+    _ ->
+      throw({scan_error,Str})
   end.
 
 %% deal with disjunct guards by replacing ';' with 'orelse'
 disjunct_guard(Toks) ->
   [case T of {';',1} -> {'orelse',1}; _ -> T end||T<-Toks].
 
-guard({call,_,{atom,_,G},Args}) -> {G,[arg(A) || A<-Args]};   % function
-guard({op,_,Op,One,Two})        -> {Op,guard(One),guard(Two)};% unary op
-guard({op,_,Op,One})            -> {Op,guard(One)};           % binary op
-guard(Guard)                    -> arg(Guard).                % variable
+guard({call,_,{atom,_,G},As}) -> {G,[guard(A) || A<-As]};   % function
+guard({op,_,Op,One,Two})      -> {Op,guard(One),guard(Two)};% binary op
+guard({op,_,Op,One})          -> {Op,guard(One)};           % unary op
+guard(Guard)                  -> arg(Guard).                % variable
 
-arg({op,_,'++',{string,_,Str},Var}) -> {list,arg_list(consa(Str,Var))};
-arg({call,_,F,Args}) -> guard({call,1,F,Args});
-arg({nil,_})         -> {list,[]};
-arg(L={cons,_,_,_})  -> {list,arg_list(L)};
-arg({tuple,_,Args})  -> {tuple,[arg(A)||A<-Args]};
-arg({map,_,Map})     -> {map,[{arg(K),arg(V)}||{_,_,K,V}<-Map]};
-arg({bin,_,Bin})     -> {bin,eval_bin(Bin)};
-arg({T,_,Var})       -> {T,Var}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% parse actions
+actions(Str) ->
+  Acts = string:tokens(Str,";,"),
+  [throw({unknown_action,A}) || A <- Acts,not lists:member(A,acts())],
+  Acts.
 
-eval_bin(Bin) ->
-    {value,B,[]} = erl_eval:expr({bin,1,Bin},[]),
-    B.
+acts() ->
+  ["stack","return","time","count"].
 
-consa([],T)     -> T;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% parse arguments
+arg({op,_,'++',A1,A2}) -> plusplus(A1,A2);
+arg({nil,_})           -> {list,[]};
+arg({cons,_,H,T})      -> {list,arg_list({cons,1,H,T})};
+arg({tuple,_,Args})    -> {tuple,[arg(A)||A<-Args]};
+arg({map,_,Map})       -> {map,[{arg(K),arg(V)}||{_,_,K,V}<-Map]};
+arg({bin,_,Bin})       -> {bin,eval_bin(Bin)};
+arg({T,_,Var})         -> {T,Var}.
+
+plusplus({string,_,[]},Var) -> arg(Var);
+plusplus({string,_,St},Var) -> {list,arg_list(consa(St,Var))};
+plusplus(A1,A2)             -> throw({illegal_plusplus,{A1,A2}}).
+
 consa([C],T)    -> {cons,1,{char,1,C},T};
 consa([C|Cs],T) -> {cons,1,{char,1,C},consa(Cs,T)}.
 
@@ -247,22 +279,10 @@ arg_list({cons,_,H,T}) -> [arg(H)|arg_list(T)];
 arg_list({nil,_})      -> [];
 arg_list(V)            -> arg(V).
 
-actions_fun(Str) ->
-  fun() ->
-      Acts = string:tokens(Str,";,"),
-      [exit({unknown_action,A}) || A <- Acts,not lists:member(A,acts())],
-      Acts
-  end.
-
-acts() ->
-  ["stack","return","time","count"].
-
-assert(Fun,Tag) ->
-  try Fun()
+eval_bin(Bin) ->
+  try
+    {value,B,[]} = erl_eval:expr({bin,1,Bin},[]),
+    B
   catch
-    _:{this_is_too_confusing,C}  -> exit({syntax_error,{C,Tag}});
-    _:{_,{error,{1,erl_parse,L}}}-> exit({syntax_error,{lists:flatten(L),Tag}});
-    _:{unknown_action,A}         -> exit({syntax_error,{unknown_action,A}});
-    _:{unbound_var,Var}          -> exit({syntax_error,{unbound_var,Var}});
-    _:R                          -> exit({R,Tag,erlang:get_stacktrace()})
+    _:R -> throw({bad_binary,R})
   end.
