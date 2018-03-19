@@ -1,4 +1,5 @@
 %% -*- mode: erlang; erlang-indent-level: 2 -*-
+%%% Author  : Mats Cronqvist <masse@cronqvi.st>
 %%% Created : 10 Mar 2010 by Mats Cronqvist <masse@kreditor.se>
 
 %% msc - match spec compiler
@@ -7,7 +8,6 @@
 
 
 -module('redbug_msc').
--author('Mats Cronqvist').
 
 -export([transform/1]).
 

@@ -1,7 +1,7 @@
 %%% -*- erlang-indent-level: 2 -*-
 %%%-------------------------------------------------------------------
 %%% File    : redbug_targ.erl
-%%% Author  : Mats Cronqvist <locmacr@mwlx084>
+%%% Author  : Mats Cronqvist <masse@cronqvi.st>
 %%% Description :
 %%%
 %%% Created : 18 Jan 2007 by Mats Cronqvist <locmacr@mwlx084>

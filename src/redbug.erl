@@ -1,7 +1,7 @@
 %%% -*- erlang-indent-level: 2 -*-
 %%%-------------------------------------------------------------------
 %%% File    : redbg.erl
-%%% Author  : Mats Cronqvist <locmacr@mwlx084>
+%%% Author  : Mats Cronqvist <masse@cronqvi.st>
 %%% Description :
 %%%
 %%% Created : 24 Jan 2007 by Mats Cronqvist <locmacr@mwlx084>
