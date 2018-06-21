@@ -23,6 +23,10 @@ help
 
     redbug:help() -> ok
 
+run from command line (portable escript archive)
+
+    ./_build/default/bin/redbug [-Opt Value [...]] TargetNode Trc [Trc...]
+
 DESCRIPTION
 
 redbug is a tool to interact with the Erlang trace facility. It will instruct
@@ -188,3 +192,84 @@ EXAMPLES
     {timeout,[{call,{{ets,tab2list,[inet_db]},<<>>},
                     {<0.540.0>,{erlang,apply,2}},
                     {15,50,43,776041}}]}
+
+Examples using the escript
+
+First start a node that we're going to trace:
+
+    erl -sname foo
+
+We'll need to type some commands into the shell for some of the
+following traces to trigger.
+
+Start tracing, giving the node name as the first argument. (If the
+node name doesn't contain a host name, redbug will create a short
+node name by adding the host name.)
+
+    $ redbug foo erlang:demonitor
+
+    % 14:19:29 <5270.91.0>(dead)
+    % erlang:demonitor(#Ref<5270.0.4.122>, [flush])
+
+    % 14:19:29 <5270.40.0>({erlang,apply,2})
+    % erlang:demonitor(#Ref<5270.0.4.130>, [flush])
+
+    % 14:19:29 <5270.40.0>({erlang,apply,2})
+    % erlang:demonitor(#Ref<5270.0.4.131>, [flush])
+
+    % 14:19:29 <5270.40.0>({erlang,apply,2})
+    % erlang:demonitor(#Ref<5270.0.4.132>, [flush])
+    redbug done, timeout - 4
+
+    %% Limit message count
+    $ redbug foo erlang:demonitor -msgs 1
+
+    % 14:22:09 <5276.103.0>(dead)
+    % erlang:demonitor(#Ref<5276.0.4.144>, [flush])
+    redbug done, msg_count - 1
+
+    %% Print return value. The return value is a separate message.
+    $ redbug foo 'erlang:demonitor -> return' -msgs 2
+
+    % 14:23:47 <5276.115.0>(dead)
+    % erlang:demonitor(#Ref<5276.0.4.166>, [flush])
+
+    % 14:23:47 <5276.115.0>(dead)
+    % erlang:demonitor/2 -> true
+    redbug done, msg_count - 1
+
+    %% Also print call stack.
+    $ redbug foo 'erlang:demonitor -> return;stack' -msgs 2
+
+    % 14:24:43 <5276.121.0>(dead)
+    % erlang:demonitor(#Ref<5276.0.4.177>, [flush])
+      shell:'-get_command/5-fun-0-'/1
+
+    % 14:24:43 <5276.121.0>(dead)
+    % erlang:demonitor/2 -> true
+    redbug done, msg_count - 1
+
+    %% Trace on messages that the 'user_drv' process receives.
+    $ redbug foo receive -procs user_drv -msgs 1
+
+    % 14:27:10 <6071.31.0>(user_drv)
+    % <<< {#Port<6071.375>,{data,"a"}}
+    redbug done, msg_count - 1
+
+    %% As above, but also trace on sends. The two trace patterns
+    %% are given as separate arguments.
+    $ redbug foo receive send -procs user_drv -msgs 2
+
+    % 17:43:28 <6071.31.0>(user_drv)
+    % <<< {#Port<6071.375>,{data,"a"}}
+
+    % 17:43:28 <6071.31.0>(user_drv)
+    % <6071.33.0>({group,server,3}) <<< {<6071.31.0>,{data,"a"}}
+    redbug done, msg_count - 2
+
+    %% Call trace with a function head match.
+    $ redbug foo 'ets:tab2list(inet_db)' -msgs 2
+
+    % 17:45:48 <5276.40.0>({erlang,apply,2})
+    % ets:tab2list(inet_db)
+    redbug done, timeout - 1

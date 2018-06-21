@@ -1,13 +1,16 @@
 REBAR = rebar3
 
-.PHONY: all compile test clean
+.PHONY: all compile escriptize test clean
 .PHONY: test eunit xref dialyze
 .PHONY: release release_minor release_major release_patch
 
-all: compile
+all: compile escriptize
 
 compile:
 	@$(REBAR) compile
+
+escriptize:
+	@$(REBAR) escriptize
 
 clean:
 	@find . -name "*~" -exec rm {} \;
