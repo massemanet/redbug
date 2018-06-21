@@ -7,16 +7,18 @@
 %%%-------------------------------------------------------------------
 -module(redbug).
 
+%% for the escript
+-export([main/1]).
+
+%% for the erlang shell
 -export([help/0]).
 -export([start/1, start/2]).
 -export([stop/0, stop/1]).
 -export([dtop/0, dtop/1]).
 -export([redbug_name/1]).
 
--define(
-   log(T),
-   error_logger:info_report(
-     [{function, {?MODULE, ?FUNCTION_NAME}}, {line, ?LINE}|T])).
+-define(log(T),
+        error_logger:info_report([{function, {?MODULE, ?FUNCTION_NAME}}, {line, ?LINE}|T])).
 
 %% erlang:get_stacktrace/0 was made obsolete in OTP21
 -ifdef(OTP_RELEASE). %% this implies 21 or higher
@@ -67,14 +69,159 @@
         }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Called as an escript
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+main(Args) ->
+  %% In the record definition, the default target node is node(),
+  %% but that doesn't make sense for our escript, so make it
+  %% 'undefined' and fail if it isn't filled in.
+  pipe(#cnf{target = undefined, print_fun = mk_outer(#cnf{})},
+    [mk_handle_args(Args),
+     fun maybe_new_target/1,
+     fun start_distribution/1,
+     fun run/1,
+     fun(_) -> halt_and_flush(0) end]).
+
+run(Cnf) ->
+  try
+    init(Cnf)
+  catch
+    ?EXCEPTION(C, R, S) ->
+      io:fwrite("~p~n",[{C, R, S}]),
+      halt_and_flush(66)
+  end.
+
+mk_handle_args(Args) ->
+  fun(Cnf) -> safe_handle_args(Args, Cnf) end.
+
+safe_handle_args(Args, Cnf) ->
+  try
+    handle_args(Args, Cnf)
+  catch
+    _:_ ->
+      help(),
+      halt_and_flush(65)
+    end.
+
+halt_and_flush(Status) ->
+  %% As far as I can tell, this is the best (but still not perfect)
+  %% way to try to ensure that all output has been written before we
+  %% exit. See:
+  %% http://erlang.org/pipermail/erlang-questions/2011-April/057479.html
+  init:stop(Status),
+  timer:sleep(infinity).
+
+handle_args([], #cnf{target = undefined}) ->
+  throw("TargetNode not specified");
+handle_args([], #cnf{trc = []}) ->
+  throw("No trace patterns specified");
+handle_args([], Config = #cnf{}) ->
+  Config;
+
+handle_args(["-setcookie" | Rest], Config) ->
+  %% "-setcookie" is a synonym for "-cookie"
+  handle_args(["-cookie" | Rest], Config);
+handle_args(["-" ++ Option | Rest], Config) ->
+  %% Everything else maps to fields in the cnf record
+  Options = #{time => integer,
+              msgs => integer,
+              target => atom,
+              cookie => atom,
+              procs => term,
+              max_queue => integer,
+              max_msg_size => integer,
+              debug => boolean,
+              trace_child => boolean,
+              arity => boolean,
+              discard => boolean,
+              %% print-related
+              buffered => boolean,
+              print_calls => boolean,
+              print_file => string,
+              print_msec => boolean,
+              print_time_unit => string,
+              print_depth => integer,
+              print_re => string,
+              print_return => boolean,
+              %% trc file-related
+              file => string,
+              file_size => integer,
+              file_count => integer},
+  OptionAtom = list_to_atom(Option),
+  case maps:get(OptionAtom, Options, undefined) of
+    undefined ->
+      throw("Invalid option -" ++ Option);
+    Type ->
+      try to_option_value(Type, hd(Rest)) of
+        Parsed ->
+          Index = findex(OptionAtom, record_info(fields, cnf)) + 1,
+          NewCnf = setelement(Index, Config, Parsed),
+          handle_args(tl(Rest), NewCnf)
+      catch
+        error:badarg ->
+          throw("Invalid value for -" ++ Option ++ "; expected " ++ atom_to_list(Type))
+      end
+  end;
+handle_args([Node | Rest], Config = #cnf{target = undefined}) ->
+  %% The first non-option argument is the target node
+  handle_args(Rest, Config#cnf{target = list_to_atom(Node)});
+handle_args([Trc | Rest], Config = #cnf{trc = Trcs}) ->
+  %% Any following non-option arguments are trace patterns.
+  handle_args(Rest, Config#cnf{trc = Trcs++[trc(Trc)]}).
+
+start_distribution(Cnf) ->
+  DistOptions = #{name => random_node_name(), name_domain => name_domain(Cnf), hidden => true},
+  {ok, _} = net_kernel:start(DistOptions),
+  assert_cookie(Cnf).
+
+random_node_name() ->
+  list_to_atom("redbug-" ++ integer_to_list(rand:uniform(1000000000))).
+
+%% Check if the target node has a "long" or "short" name,
+%% since we need to match that.
+name_domain(#cnf{target = Target}) ->
+  case re:split(atom_to_list(Target), "[@.]") of
+    [_] -> shortnames;
+    [_, _] -> shortnames;
+    [_, _, _|_] -> longnames
+  end.
+
+trc("send") -> send;
+trc("receive") -> 'receive';
+trc(Trc) -> Trc.
+
+to_option_value(integer, String) ->
+  list_to_integer(String);
+to_option_value(atom, String) ->
+  list_to_atom(String);
+to_option_value(term, String) ->
+  to_term(String);
+to_option_value(boolean, String) ->
+  case String of
+    "true" -> true;
+    "false" -> false;
+    _ -> error(badarg)
+  end;
+to_option_value(string, String) ->
+  String.
+
+to_term(Str) ->
+  {done, {ok, Toks, 1}, []} = erl_scan:tokens([], "["++Str++"]. ", 1),
+  case erl_parse:parse_term(Toks) of
+    {ok, [Term]} -> Term;
+    {ok, L} when is_list(L) -> L
+  end.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% @doc Prints help.
+
 help() ->
-  Text =
-    ["redbug - the (sensibly) Restrictive Debugger"
-    , ""
-    , "  redbug:start(Trc) -> start(Trc, [])."
-    , "  redbug:start(Trc, Opts)."
+  lists:foreach(fun(S) -> io:fwrite(standard_io, "~s~n", [S]) end, help_text()).
+
+help_text() ->
+  ["redbug - the (sensibly) Restrictive Debugger"
+    ,""
+    , help_script()
     , ""
     , "  redbug is a tool to interact with the Erlang trace facility."
     , "  It will instruct the Erlang VM to generate so called "
@@ -134,10 +281,20 @@ help() ->
     , "file         (none)           use a trc file based on this name"
     , "file_size    (1)              size of each trc file"
     , "file_count   (8)              number of trc files"
-    , ""
-    ],
-  lists:foreach(fun(S) -> io:fwrite(standard_io, "~s~n", [S])end, Text).
+    , ""].
 
+help_script() ->
+  case catch escript:script_name() of
+    {'EXIT', _} ->
+      flat("  ~s~n  ~s",
+         ["redbug:start(Trc) -> start(Trc, []).",
+          "redbug:start(Trc, Opts)."]);
+    Escript ->
+      flat("  ~s ~s~n  ~s",
+         [Escript,
+          "[-Opt Value [...]] TargetNode Trc [Trc...]",
+          "(you may need to quote trace patterns containing spaces etc)"])
+  end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% dtop facade
@@ -248,9 +405,9 @@ make_cnf([], Cnf, _) -> Cnf;
 make_cnf([{Tag, Val}|Props], Cnf, Tags) ->
   make_cnf(Props, setelement(findex(Tag, Tags)+1, Cnf, Val), Tags).
 
-findex(Tag, [])       -> throw({no_such_option, Tag});
-findex(Tag, [Tag|_])  -> 1;
-findex(Tag, [_|Tags]) -> findex(Tag, Tags)+1.
+findex(Tag,[])       -> throw({no_such_option,Tag});
+findex(Tag,[Tag|_])  -> 1;
+findex(Tag,[_|Tags]) -> findex(Tag,Tags)+1.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the main redbug process
@@ -674,3 +831,6 @@ redbug_name(Opts) when is_list(Opts) ->
 
 redbug_name(Node) when is_atom(Node) ->
   list_to_atom("redbug_" ++ atom_to_list(Node)).
+
+pipe(Term, Funcs) ->
+  lists:foldl(fun(F, T) -> F(T) end, Term, Funcs).
