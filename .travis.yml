@@ -7,9 +7,6 @@ otp_release:
   - 22.2
   - 21.3
   - 20.3
-  - 19.3
-  - 18.3
-  - 17.5
 
 script:
   make test

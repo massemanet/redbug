@@ -16,7 +16,7 @@ clean:
 test: compile xref eunit
 
 eunit: all
-	ERL_FLAGS="-sname eunit" $(REBAR) eunit
+	@$(REBAR) eunit --sname eunit
 	@$(REBAR) cover
 
 xref: all
