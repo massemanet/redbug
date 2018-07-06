@@ -13,27 +13,27 @@
 %% should be used to enable old functions. That way new functions are
 %% enabled by default.
 
-KeyAppend =
-fun(Tag,[],E,_)          -> [{Tag,[E]}];
-   (Tag,[{Tag,O}|T],E,_) -> [{Tag,[E|O]}|T];
-   (Tag,[H|T],E,G)       -> [H|G(Tag,T,E,G)]
-end,
+NOW =
+ {fun() -> erlang:is_builtin(erlang,timestamp,0)
+  end,
+  'USE_NOW'},
 
-Check =
-fun(CFG,Predicate,Macro) ->
-    case Predicate() of
-      false -> KeyAppend(erl_opts,CFG,{d,Macro},KeyAppend);
-      true  -> CFG
-    end
-end,
+Checks = [NOW],
+
+%% ================================================
+KeyAppend = fun(Tag,[],E,_)          -> [{Tag,[E]}];
+               (Tag,[{Tag,O}|T],E,_) -> [{Tag,[E|O]}|T];
+               (Tag,[H|T],E,G)       -> [H|G(Tag,T,E,G)]
+            end,
+
+Check = fun(CFG,Predicate,Macro) ->
+            case Predicate() of
+              false -> KeyAppend(erl_opts,CFG,{d,Macro},KeyAppend);
+              true  -> CFG
+            end
+        end,
 
 lists:foldl(
   fun({Predicate,Macro},Cfg) -> Check(Cfg,Predicate,Macro) end,
   CONFIG,
-  [{fun() -> code:ensure_loaded(crypto),
-             erlang:function_exported(crypto,block_encrypt,4)
-    end,
-    'USE_PRE_R16_CRYPTO'},
-   {fun() -> erlang:is_builtin(erlang,timestamp,0)
-    end,
-    'USE_NOW'}]).
+  Checks).

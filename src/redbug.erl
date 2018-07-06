@@ -12,8 +12,9 @@
 -export([start/1,start/2,start/3,start/4,start/5]).
 -export([stop/0]).
 
--define(log(T),log([process_info(self(),current_function),{line,?LINE}],T)).
-log(HD,T) -> error_logger:info_report(HD++T).
+-define(log(T),error_logger:info_report(
+                 [process_info(self(),current_function),
+                  {line,?LINE}|T])).
 
 %% the redbug server data structure
 %% most can be set in the input proplist
@@ -204,22 +205,30 @@ make_cnf([{Tag,Val}|Props],Cnf,Tags) ->
 findex(Tag,[])       -> throw({no_such_option,Tag});
 findex(Tag,[Tag|_])  -> 1;
 findex(Tag,[_|Tags]) -> findex(Tag,Tags)+1.
+
+%% erlang:get_stacktrace/0 was made obsolete in OTP21
+-ifdef('OTP_RELEASE'). %% implies >= OTP21
+-define(try_with_stack(F),
+        try {ok,F} catch __C:__R:__S -> {__C,__R,__S} end).
+-else.
+-define(try_with_stack(F),
+        try {ok,F} catch __C:__R -> {__C,__R,erlang:get_stacktrace()} end).
+-endif.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the main redbug process
 %%% a state machine. init, starting, running, stopping, wait_for_trc.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 init(Cnf) ->
   process_flag(trap_exit,true),
-  try
-    starting(do_start(Cnf))
-  catch
-    R ->
+  case ?try_with_stack(starting(do_start(Cnf))) of
+    {ok,Result} ->
+      Result;
+    {throw,R,_} ->
       exit({argument_error,R});
-    C:R ->
-      case Cnf#cnf.debug andalso not Cnf#cnf.blocking of
-        false-> ok;
-        true -> ?log([{C,R},{stack,erlang:get_stacktrace()}])
-      end,
+    {C,R,S} when Cnf#cnf.debug andalso not Cnf#cnf.blocking ->
+      ?log([{C,R},{stack,S}]);
+    {_,R,_} ->
       exit(R)
   end.
 
@@ -236,25 +245,25 @@ starting(Cnf = #cnf{print_pid=PrintPid}) ->
 running(Cnf = #cnf{trc_pid=TrcPid,print_pid=PrintPid}) ->
   receive
     stop                       -> TrcPid ! stop,
-                                  stopping(Cnf);
-    {redbug_targ,{stopping,_}} -> stopping(Cnf);
-    {'EXIT',TrcPid,R}          -> ?log({trace_control_died,R}),
-                                  stopping(Cnf);
-    {'EXIT',PrintPid,R}        -> wait_for_trc(Cnf,R);
+                                  wait_for_trc(Cnf),
+                                  done(Cnf,wait_for_printer(Cnf));
+    {redbug_targ,{stopping,_}} -> done(Cnf,wait_for_printer(Cnf));
+    {'EXIT',TrcPid,R}          -> ?log([{trace_control_died,R}]),
+                                  done(Cnf,wait_for_printer(Cnf));
+    {'EXIT',PrintPid,R}        -> wait_for_trc(Cnf),
+                                  done(Cnf,R);
     X                          -> ?log([{unknown_message,X}])
   end.
 
-wait_for_trc(Cnf = #cnf{trc_pid=TrcPid},R) ->
+wait_for_trc(#cnf{trc_pid=TrcPid}) ->
   receive
-    {redbug_targ,{stopping,_}} -> done(Cnf,R);
-    {'EXIT',TrcPid,R}          -> ?log({trace_control_died,R});
-    X                          -> ?log({unknown_message,X})
+    {'EXIT',TrcPid,normal} -> ok;
+    {'EXIT',TrcPid,R} -> ?log([{trace_control_died,R}])
   end.
 
-stopping(Cnf = #cnf{print_pid=PrintPid}) ->
+wait_for_printer(#cnf{print_pid=PrintPid}) ->
   receive
-    {'EXIT',PrintPid,R} -> done(Cnf,R);
-    X                   -> ?log([{unknown_message,X}])
+    {'EXIT',PrintPid,R} -> R
   end.
 
 done(#cnf{blocking=false},{Reason,Answer}) ->
