@@ -1,4 +1,7 @@
-.\#*
-\#*
+*.crashdump
 *~
+.\#*
 /_build/
+\#*
+foo*.trc
+redbug.txt

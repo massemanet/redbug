@@ -9,11 +9,42 @@
 -module(redbug_targ).
 
 -export([start/2]).
+-export([init/1]).
+
+
+-record(ld,{buffering,
+            count,
+            dest,
+            file,
+            flags,
+            host_pid,
+            loop_fun,
+            maxqueue,
+            maxsize,
+            port_no,
+            procs,
+            queue_size,
+            rtps,
+            style,
+            time,
+            timer,
+            tracer,
+            where,
+            wrap_count,
+            wrap_size}).
 
 %%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start(Node,Cnf) ->
   assert_loaded(Node),
-  do_start(Node,dict:store(host_pid,self(),Cnf)).
+  do_start(Node,mk_ld(Cnf)).
+
+mk_ld([{time,Time},{flags,Flags},{rtps,RTPs},{procs,Procs},{where,Where}]) ->
+  #ld{host_pid=self(),
+      time=Time,
+      flags=Flags,
+      rtps=RTPs,
+      procs=Procs,
+      where=Where}.
 
 assert_loaded(Node) ->
   lists:foreach(fun(M) -> ass_loaded(Node,M) end,[?MODULE]).
@@ -46,59 +77,50 @@ ftime([]) -> interpreted;
 ftime([{time,T}|_]) -> T;
 ftime([_|T]) -> ftime(T).
 
-do_start(nonode@nohost,Cnf) ->
-  spawn_link(fun() -> init(Cnf) end);
-do_start(Node,Cnf) ->
-  case net_adm:ping(Node) of
-    pang->
-      exit(node_down);
-    pong ->
-      spawn_link(Node,fun() -> init(Cnf) end)
+do_start(Node,LD) ->
+  case Node == nonode@nohost orelse net_adm:ping(Node) == pong of
+    true ->
+      spawn_link(Node,fun() -> init(LD) end);
+    false ->
+      exit(node_down)
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% trace control process
-%%% LD = idle | {host_pid,timer,consumer,cnf}
-%%% Cnf = {time,flags,rtps,procs,where}
-%%% Where = {term_buffer,{Pid,Count,MaxQueue,MaxSize}} |
-%%%         {term_stream,{Pid,Count,MaxQueue,MaxSize}} |
-%%%         {term_discard,{Pid,Count,MaxQueue,MaxSize}} |
-%%%         {file,File,Size,Count} |
-%%%         {ip,Port,Queue}
+%%% #ld.where = {buffer,Pid,Count,MaxQueue,MaxSize} |
+%%%             {stream,Pid,Count,MaxQueue,MaxSize} |
+%%%             {discard,Pid,Count,MaxQueue,MaxSize} |
+%%%             {file,File,Size,Count} |
+%%%             {ip,Port,Queue}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-init(Cnf) ->
-  process_flag(trap_exit,true),
-  active(start_trace(Cnf)).
 
-active(Cnf) ->
-  Cons = dict:fetch(consumer,Cnf),
-  HostPid = dict:fetch(host_pid,Cnf),
-  receive
-    stop                -> remote_stop(Cons,Cnf);
-    {'EXIT',HostPid,_}  -> remote_stop(Cons,Cnf);
-    {local_stop,R}      -> local_stop(HostPid,Cnf,R);
-    {'EXIT',Cons,R}     -> local_stop(HostPid,Cnf,R);
-    Error               -> local_stop(HostPid,Cnf,Error)
+init(LD0) ->
+  unset_tps(),
+  LD = consumer(fix_procs(expand_underscores(maybe_load_rtps(LD0)))),
+  NoProcs = start_trace(LD),
+  untrace(family(redbug)++family(?MODULE),LD#ld.flags),
+  NoFuncs = set_tps(LD#ld.rtps),
+  assert_trace_targets(NoProcs,NoFuncs,LD#ld.flags,LD#ld.procs),
+  LD#ld.host_pid ! {?MODULE,{starting,NoProcs,NoFuncs}},
+  exit({?MODULE,(LD#ld.loop_fun)()}).
+
+maybe_load_rtps(LD) ->
+  LD#ld{rtps=lists:foldl(fun maybe_load_rtp/2,[],LD#ld.rtps)}.
+
+maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
+  try
+    case code:which(M) of
+      preloaded         -> ok;
+      non_existing      -> throw(non_existing_module);
+      L when is_list(L) -> [c:l(M) || false == code:is_loaded(M)]
+    end,
+    [Rtp|O]
+  catch
+    _:_ -> O
   end.
 
-local_stop(HostPid,Cnf,R) ->
-  stop_trace(Cnf),
-  HostPid ! {?MODULE,{stopping,R}}.
-
-remote_stop(Consumer,Cnf) ->
-  Consumer ! stop,
-  stop_trace(Cnf).
-
-stop_trace(Cnf) ->
-  erlang:trace(all,false,dict:fetch(flags,Cnf)),
-  unset_tps().
-
-start_trace(Cnf) ->
-  Rtps = expand_underscores(maybe_load_rtps(dict:fetch(rtps,Cnf))),
-  do_start_trace(dict:store(rtps,Rtps,Cnf)).
-
-expand_underscores(Rtps) ->
-  lists:foldl(fun expand_underscore/2,[],Rtps).
+expand_underscores(LD) ->
+  LD#ld{rtps=lists:foldl(fun expand_underscore/2,[],LD#ld.rtps)}.
 
 expand_underscore({{'_','_','_'},MatchSpec,Flags},O) ->
   ExpandModule =
@@ -139,33 +161,8 @@ locals(M) ->
 globals(M) ->
   M:module_info(exports).
 
-maybe_load_rtps(Rtps) ->
-  lists:foldl(fun maybe_load_rtp/2,[],Rtps).
-
-maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
-  try
-    case code:which(M) of
-      preloaded         -> ok;
-      non_existing      -> throw(non_existing_module);
-      L when is_list(L) -> [c:l(M) || false == code:is_loaded(M)]
-    end,
-    [Rtp|O]
-  catch
-    _:_ -> O
-  end.
-
-do_start_trace(Cnf) ->
-  Consumer = consumer(dict:fetch(where,Cnf),Cnf),
-  Ps = lists:foldl(fun mk_prc/2,[],dict:fetch(procs,Cnf)),
-  Rtps = dict:fetch(rtps,Cnf),
-  Flags = [{tracer,real_consumer(Consumer)}|dict:fetch(flags,Cnf)],
-  unset_tps(),
-  NoProcs = lists:sum([erlang:trace(P,true,Flags) || P <- Ps]),
-  untrace(family(redbug)++family(?MODULE),Flags),
-  NoFuncs = set_tps(Rtps),
-  assert_trace_targets(NoProcs,NoFuncs,Flags,Ps),
-  dict:fetch(host_pid,Cnf) ! {?MODULE,{starting,NoProcs,NoFuncs,Consumer}},
-  dict:store(consumer,Consumer,Cnf).
+fix_procs(LD) ->
+  LD#ld{procs=lists:foldl(fun mk_prc/2,[],LD#ld.procs)}.
 
 family(Daddy) ->
   try D = whereis(Daddy),
@@ -175,11 +172,17 @@ family(Daddy) ->
 
 untrace(Pids,Flags) ->
   [try erlang:trace(P,false,Flags)
-   catch _:R-> erlang:display({R,process_info(P),erlang:trace_info(P,flags)})
+   catch _:R -> exit({untrace_error,{R,erlang:trace_info(P,flags)}})
    end || P <- Pids,
           is_pid(P),
           node(P)==node(),
           {flags,[]}=/=erlang:trace_info(P,flags)].
+
+set_tps(TPs) ->
+  lists:foldl(fun set_tp/2,0,TPs).
+
+set_tp({MFA,MatchSpec,Flags},A) ->
+   A+erlang:trace_pattern(MFA,MatchSpec,Flags).
 
 assert_trace_targets(NoProcs,NoFuncs,Flags,Ps) ->
   case 0 < NoProcs orelse is_new_pidspec(Ps) of
@@ -197,16 +200,6 @@ is_new_pidspec(Ps) ->
 is_message_trace(Flags) ->
   (lists:member(send,Flags) orelse lists:member('receive',Flags)).
 
-unset_tps() ->
-  erlang:trace_pattern({'_','_','_'},false,[local,call_count,call_time]),
-  erlang:trace_pattern({'_','_','_'},false,[global]).
-
-set_tps(TPs) ->
-  lists:foldl(fun set_tps_f/2,0,TPs).
-
-set_tps_f({MFA,MatchSpec,Flags},A) ->
-  A+erlang:trace_pattern(MFA,MatchSpec,Flags).
-
 mk_prc(Ps,A) when Ps == running; Ps == all; Ps == new ->
   [Ps|A];
 mk_prc(Reg,A) when is_atom(Reg) ->
@@ -222,55 +215,33 @@ mk_prc(Pid,A) when is_pid(Pid) ->
     false-> A
   end.
 
-real_consumer(C) ->
-  Mon = erlang:monitor(process,C),
-  C ! {show_port,self()},
-  receive
-    {'DOWN',Mon,_,C,R} -> exit({no_local_consumer,R});
-    Port               -> erlang:demonitor(Mon,[flush]),
-                          Port
-  end.
+start_trace(LD) ->
+  Flags = [{tracer,LD#ld.tracer}|LD#ld.flags],
+  lists:sum([erlang:trace(P,true,Flags) || P <- LD#ld.procs]).
+
+stop_trace(LD) ->
+  erlang:trace(all,false,LD#ld.flags).
+
+unset_tps() ->
+  erlang:trace_pattern({'_','_','_'},false,[local,call_count,call_time]),
+  erlang:trace_pattern({'_','_','_'},false,[global]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-consumer({term_discard,Term},Cnf)    -> consumer_pid(Term,discard,Cnf);
-consumer({term_buffer,Term},Cnf)     -> consumer_pid(Term,yes,Cnf);
-consumer({term_stream,Term},Cnf)     -> consumer_pid(Term,no,Cnf);
-consumer({file,File,Size,Count},Cnf) -> consumer_file(File,Size,Count,Cnf);
-consumer({ip,Port,Queue},Cnf)        -> consumer_ip(Port,Queue,Cnf).
-
-consumer_pid({Pid,Cnt,MaxQueue,MaxSize},Buf,Cnf) ->
-  C =
-    dict:from_list(
-      [{daddy,self()},
-       {count,Cnt},
-       {time,dict:fetch(time,Cnf)},
-       {maxsize,MaxSize},
-       {maxqueue,MaxQueue},
-       {rtps,dict:fetch(rtps,Cnf)},
-       {where,Pid},
-       {buffering,Buf}]),
-  spawn_link(fun() -> init_local_pid(C) end).
-
-consumer_file(File,Size,WrapCount,Cnf) ->
-  C =
-    dict:from_list(
-      [{style,file},
-       {file,File},
-       {size,Size},
-       {wrap_count,WrapCount},
-       {time,dict:fetch(time,Cnf)},
-       {daddy,self()}]),
-  spawn_link(fun() -> init_local_port(C) end).
-
-consumer_ip(Port,QueueSize,Cnf) ->
-  C =
-    dict:from_list(
-      [{style,ip},
-       {port_no,Port},
-       {queue_size,QueueSize},
-       {time,dict:fetch(time,Cnf)},
-       {daddy,self()}]),
-  spawn_link(fun() -> init_local_port(C) end).
+consumer(LD = #ld{where={Buffering,Pid,Cnt,MaxQueue,MaxSize}}) ->
+  init_local_pid(LD#ld{count=Cnt,
+                       maxsize=MaxSize,
+                       maxqueue=MaxQueue,
+                       dest=Pid,
+                       buffering=Buffering});
+consumer(LD = #ld{where={file,File,Size,WrapCount}}) ->
+  init_local_port(LD#ld{style=file,
+                        file=File,
+                        wrap_size=Size,
+                        wrap_count=WrapCount});
+consumer(LD = #ld{where={ip,Port,QueueSize}}) ->
+  init_local_port(LD#ld{style=ip,
+                        port_no=Port,
+                        queue_size=QueueSize}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%  local consumer process for port-style tracing.
@@ -279,35 +250,36 @@ consumer_ip(Port,QueueSize,Cnf) ->
 %%%    it gets a stop from the controller
 %%%    timeout
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-init_local_port(Cnf) ->
-  erlang:start_timer(dict:fetch(time,Cnf),self(),dict:fetch(daddy,Cnf)),
-  Port = mk_port(Cnf),
-  loop_local_port(dict:store(port,Port,Cnf)).
+init_local_port(LD0) ->
+  LD = LD0#ld{tracer=mk_port(LD0),
+              timer=erlang:start_timer(LD0#ld.time,self(),nul)},
+  LD#ld{loop_fun=fun() -> loop_local_port(LD) end}.
 
-loop_local_port(Cnf) ->
-  Daddy = dict:fetch(daddy,Cnf),
+loop_local_port(LD = #ld{timer=Timer}) ->
   receive
-    {show_port,Pid}   -> Pid ! dict:fetch(port,Cnf),
-                         loop_local_port(Cnf);
-    stop              -> dbg:flush_trace_port(),
-                         exit(local_done);
-    {timeout,_,Daddy} -> Daddy ! {local_stop,timeout},
-                         dbg:flush_trace_port(),
-                         exit(timeout)
+    stop ->
+      stop_trace_port(LD),
+      stop;
+    {timeout,Timer,_} ->
+      stop_trace_port(LD),
+      timeout
   end.
 
-mk_port(Cnf) ->
-  case dict:fetch(style,Cnf) of
+stop_trace_port(LD) ->
+  erlang:display({port,LD#ld.tracer,dbg:flush_trace_port()}),
+  stop_trace(LD),
+  unset_tps().
+
+mk_port(LD) ->
+  case LD#ld.style of
     ip ->
-      Port = dict:fetch(port_no,Cnf),
-      QueueSize = dict:fetch(queue_size,Cnf),
-      (dbg:trace_port(ip,{Port,QueueSize}))();
+      (dbg:trace_port(ip,{LD#ld.port_no,LD#ld.queue_size}))();
     file ->
-      File = dict:fetch(file,Cnf),
-      WrapCount = dict:fetch(wrap_count,Cnf),
-      WrapSize = dict:fetch(size,Cnf)*1024*1024,% file size (per file) in MB.
+      #ld{file=File,
+          wrap_count=WrapCount,
+          wrap_size=WrapSize} = LD,
       Suffix = ".trc",
-      (dbg:trace_port(file,{File,wrap,Suffix,WrapSize,WrapCount}))()
+      (dbg:trace_port(file,{File,wrap,Suffix,WrapSize*1024*1024,WrapCount}))()
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -319,38 +291,45 @@ mk_port(Cnf) ->
 %%%    message queue too long
 %%%    a trace message is too big
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%
--record(ld,{daddy,where,count,rtps,maxqueue,maxsize}).
 
-init_local_pid(Cnf) ->
-  erlang:start_timer(dict:fetch(time,Cnf),self(),dict:fetch(daddy,Cnf)),
-  loop_lp({#ld{daddy    =dict:fetch(daddy,Cnf),
-               where    =dict:fetch(where,Cnf),
-               rtps     =dict:fetch(rtps,Cnf),
-               maxsize  =dict:fetch(maxsize,Cnf),
-               maxqueue =dict:fetch(maxqueue,Cnf)},
-           buffering(dict:fetch(buffering,Cnf)),
-           dict:fetch(count,Cnf)}).
+init_local_pid(LD0) ->
+  LD = LD0#ld{timer=erlang:start_timer(LD0#ld.time,self(),nul),
+              tracer=self()},
+  LD#ld{loop_fun=fun() -> loop_lp(LD,buffering(LD),LD#ld.count) end}.
 
-buffering(yes) -> [];
-buffering(Buf) -> Buf.
+buffering(#ld{buffering=Buff}) ->
+  case Buff of
+    buffer  -> [];
+    stream  -> no;
+    discard -> discard
+  end.
 
-loop_lp({LD,Buff,Count}=State) ->
+loop_lp(LD,Buff,Count) ->
   maybe_exit(msg_queue,LD),
   maybe_exit(msg_count,{LD,Buff,Count}),
   receive
-    {timeout,_,Daddy}         -> Daddy ! {local_stop,timeout},
-                                 flush(LD,Buff),exit(timeout);
-    stop                      -> flush(LD,Buff),exit(local_done);
-    {show_port,Pid}           -> Pid ! self(),
-                                 loop_lp(State);
-    {trace_ts,Pid,Tag,A,TS}   -> loop_lp(msg(LD,Buff,Count,{Tag,Pid,TS,A}));
-    {trace_ts,Pid,Tag,A,B,TS} -> loop_lp(msg(LD,Buff,Count,{Tag,Pid,TS,{A,B}}))
+    {trace_ts,Pid,Tag,A,TS} ->
+      Buf = msg(Buff,LD,{Tag,Pid,TS,A}),
+      loop_lp(LD,Buf,Count-1);
+    {trace_ts,Pid,Tag,A,B,TS} ->
+      Buf = msg(Buff,LD,{Tag,Pid,TS,{A,B}}),
+      loop_lp(LD,Buf,Count-1);
+    {timeout,_,_} ->
+      stop_trace_lp(LD,Buff),
+      timeout;
+    stop ->
+      stop_trace_lp(LD,Buff),
+      stop
   end.
 
-msg(LD,Buff,Count,Item) ->
+stop_trace_lp(LD,Buff) ->
+  stop_trace(LD),
+  flush(LD,Buff),
+  unset_tps().
+
+msg(Buff,LD,Item) ->
   maybe_exit(msg_size,{LD,Item}),
-  {LD,buff(Buff,LD,Item),Count-1}.
+  buff(Buff,LD,Item).
 
 buff(discard,_,_)   -> discard;
 buff(no,LD,Item)    -> send_one(LD,Item),no;
@@ -399,22 +378,28 @@ maybe_exit_args(MS,B) when MS < byte_size(B) ->
 maybe_exit_args(_,_) ->
   ok.
 
-send_one(LD,Msg) -> LD#ld.where ! [msg(Msg)].
+send_one(LD,Msg) -> LD#ld.dest ! [msg(Msg)].
 
 flush(LD,Buffer) ->
   case is_list(Buffer) of
-    true  -> LD#ld.where ! lists:map(fun msg/1,lists:reverse(Buffer));
+    true  -> LD#ld.dest ! lists:map(fun msg/1,lists:reverse(Buffer));
     false -> ok
   end,
-  lists:foreach(fun(RTP) -> flush_time_count(RTP,LD#ld.where) end,LD#ld.rtps).
+  lists:foreach(mk_flush_time_count(LD#ld.dest),LD#ld.rtps).
 
-flush_time_count({MFA,_MatchSpec,Flags},Where) ->
-  Where ! lists:foldl(fun(Flag,A) -> time_count(MFA,Flag,A) end,[],Flags).
+mk_flush_time_count(Where) ->
+  fun({MFA,_MatchSpec,Flags}) ->
+    case [time_count(MFA,Flag) || Flag <- Flags, is_counter(Flag)] of
+      [] -> ok;
+      Msgs -> Where ! Msgs
+    end
+  end.
 
-time_count(MFA,Flag,A) when Flag == call_count; Flag == call_time ->
-  [{Flag,{MFA,element(2,erlang:trace_info(MFA,Flag))},[],ts(ts())}|A];
-time_count(_,_,A) ->
-  A.
+is_counter(Flag) ->
+  (Flag == call_count) orelse (Flag == call_time).
+
+time_count(MFA,Flag) ->
+  {Flag,{MFA,element(2,erlang:trace_info(MFA,Flag))},[],ts(ts())}.
 
 msg({'send',Pid,TS,{Msg,To}})          -> {'send',{Msg,pi(To)},pi(Pid),ts(TS)};
 msg({'receive',Pid,TS,Msg})            -> {'recv',Msg,         pi(Pid),ts(TS)};

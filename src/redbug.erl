@@ -49,8 +49,7 @@
           trc          = [],          % cannot be set by user
           shell_pid    = [],          % cannot be set by user
           print_pid    = [],          % cannot be set by user
-          trc_pid      = [],          % cannot be set by user
-          cons_pid     = []           % cannot be set by user
+          trc_pid      = []           % cannot be set by user
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -232,33 +231,30 @@ init(Cnf) ->
       exit(R)
   end.
 
-starting(Cnf = #cnf{print_pid=PrintPid}) ->
+starting(Cnf) ->
   receive
-    stop                           -> Cnf#cnf.trc_pid ! stop;
-    {redbug_targ,{starting,P,F,C}} -> running(run(Cnf#cnf{cons_pid=C},P,F));
-    {'EXIT',_,{redbug_targ,R}}     -> throw(R);
-    {'EXIT',PrintPid,R}            -> ?log([printer_died,{reason,R}]);
-    {'EXIT',R}                     -> ?log([exited,{reason,R}]);
-    X                              -> ?log([{unknown_message,X}])
+    {redbug_targ,{starting,P,F}} -> running(run(Cnf,P,F));
+    {'EXIT',_,{redbug_targ,R}}   -> throw(R)
   end.
 
 running(Cnf = #cnf{trc_pid=TrcPid,print_pid=PrintPid}) ->
   receive
     stop                       -> TrcPid ! stop,
                                   wait_for_trc(Cnf),
+                                  PrintPid ! stop,
                                   done(Cnf,wait_for_printer(Cnf));
-    {redbug_targ,{stopping,_}} -> done(Cnf,wait_for_printer(Cnf));
-    {'EXIT',TrcPid,R}          -> ?log([{trace_control_died,R}]),
+    {'EXIT',TrcPid,_}          -> PrintPid ! stop,
                                   done(Cnf,wait_for_printer(Cnf));
-    {'EXIT',PrintPid,R}        -> wait_for_trc(Cnf),
+    {'EXIT',PrintPid,R}        -> TrcPid ! stop,
+                                  wait_for_trc(Cnf),
                                   done(Cnf,R);
     X                          -> ?log([{unknown_message,X}])
   end.
 
 wait_for_trc(#cnf{trc_pid=TrcPid}) ->
   receive
-    {'EXIT',TrcPid,normal} -> ok;
-    {'EXIT',TrcPid,R} -> ?log([{trace_control_died,R}])
+    {'EXIT',TrcPid,{redbug_targ,stop}} -> ok;
+    {'EXIT',TrcPid,R}                  -> ?log([{trace_control_died,R}])
   end.
 
 wait_for_printer(#cnf{print_pid=PrintPid}) ->
@@ -287,7 +283,6 @@ done_string(Reason) ->
   end.
 
 run(Cnf,P,F) ->
-  Cnf#cnf.print_pid ! {trace_consumer,Cnf#cnf.cons_pid},
   [Cnf#cnf.shell_pid ! {running,P,F} || is_pid(Cnf#cnf.shell_pid)],
   Cnf.
 
@@ -441,23 +436,23 @@ mfaf(I) ->
   C.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% pack the cnf record into a proplist for target consumption
+%%% pack data into a proplist for target consumption
 %%% Proplist = list({Tag,Val})
 %%% Tag = time | flags | rtps | procs | where
-%%% Where = {term_buffer,{Pid,Count,MaxQueue,MaxSize}} |
-%%%         {term_stream,{Pid,Count,MaxQueue,MaxSize}} |
-%%%         {term_discard,{Pid,Count,MaxQueue,MaxSize}} |
+%%% Where = {buffer,Pid,Count,MaxQueue,MaxSize} |
+%%%         {stream,Pid,Count,MaxQueue,MaxSize} |
+%%%         {discard,Pid,Count,MaxQueue,MaxSize} |
 %%%         {file,File,Size,Count} |
 %%%         {ip,Port,Queue}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 pack(Cnf) ->
   Flags0 = [call,timestamp],
   {Flags,RTPs} = lists:foldl(fun chk_trc/2,{Flags0,[]},slist(Cnf#cnf.trc)),
-  dict:from_list([{time,chk_time(Cnf#cnf.time)},
-                  {flags,maybe_arity(Cnf,maybe_trace_child(Cnf,Flags))},
-                  {rtps,RTPs},
-                  {procs,[chk_proc(P) || P <- mk_list(Cnf#cnf.procs)]},
-                  {where,where(Cnf)}]).
+  [{time,chk_time(Cnf#cnf.time)},
+   {flags,maybe_arity(Cnf,maybe_trace_child(Cnf,Flags))},
+   {rtps,RTPs},
+   {procs,[chk_proc(P) || P <- mk_list(Cnf#cnf.procs)]},
+   {where,where(Cnf)}].
 
 mk_list([]) -> throw(no_procs);
 mk_list([_|_] = L) -> L;
@@ -474,10 +469,10 @@ conf_file(Cnf) ->
 
 conf_term(Cnf) ->
   {chk_buffered(Cnf#cnf.buffered,Cnf#cnf.discard),
-   {Cnf#cnf.print_pid,
-    chk_msgs(Cnf#cnf.msgs),
-    Cnf#cnf.max_queue,
-    Cnf#cnf.max_msg_size}}.
+   Cnf#cnf.print_pid,
+   chk_msgs(Cnf#cnf.msgs),
+   Cnf#cnf.max_queue,
+   Cnf#cnf.max_msg_size}.
 
 maybe_arity(#cnf{arity=true},Flags) -> [arity|Flags];
 maybe_arity(_,Flags)                -> Flags.
@@ -488,9 +483,9 @@ maybe_trace_child(_,Flags)                      -> Flags.
 chk_time(Time) when is_integer(Time) -> Time;
 chk_time(X) -> throw({bad_time,X}).
 
-chk_buffered(_,true)  -> term_discard;
-chk_buffered(true,_)  -> term_buffer;
-chk_buffered(false,_) -> term_stream.
+chk_buffered(_,true)  -> discard;
+chk_buffered(true,_)  -> buffer;
+chk_buffered(false,_) -> stream.
 
 chk_proc(Pid) when is_pid(Pid) -> Pid;
 chk_proc(Atom) when is_atom(Atom) -> Atom;
@@ -517,16 +512,12 @@ slist(X) -> [X].
 %%% the print_loop process
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 print_init(PrintFun) ->
-  receive
-    {trace_consumer,TC} ->
-      erlang:monitor(process,TC),
-      print_loop(PrintFun,0)
-  end.
+  print_loop(PrintFun,0).
 
 print_loop(PrintFun,Acc) ->
   receive
-    {'DOWN',_,_,_,R} -> exit({R,Acc});
-    X                -> print_loop(PrintFun,lists:foldl(PrintFun,Acc,X))
+    Ms = [_|_] -> print_loop(PrintFun,lists:foldl(PrintFun,Acc,Ms));
+    stop -> exit({printer,Acc})
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
