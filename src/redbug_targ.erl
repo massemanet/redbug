@@ -266,21 +266,18 @@ loop_local_port(LD = #ld{timer=Timer}) ->
   end.
 
 stop_trace_port(LD) ->
-  erlang:display({port,LD#ld.tracer,dbg:flush_trace_port()}),
   stop_trace(LD),
-  unset_tps().
+  unset_tps(),
+  dbg:deliver_and_flush(LD#ld.tracer).
 
 mk_port(LD) ->
-  case LD#ld.style of
-    ip ->
-      (dbg:trace_port(ip,{LD#ld.port_no,LD#ld.queue_size}))();
-    file ->
-      #ld{file=File,
-          wrap_count=WrapCount,
-          wrap_size=WrapSize} = LD,
-      Suffix = ".trc",
-      (dbg:trace_port(file,{File,wrap,Suffix,WrapSize*1024*1024,WrapCount}))()
-  end.
+  (dbg:trace_port(LD#ld.style,trace_port_data(LD)))().
+
+trace_port_data(#ld{style=ip,port_no=PortNo,queue_size=QueueSize}) ->
+  {PortNo,QueueSize};
+trace_port_data(#ld{style=file,file=File,wrap_count=Count,wrap_size=Size}) ->
+  Suffix = ".trc",
+  {File,wrap,Suffix,Size*1024*1024,Count}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%  local consumer process for pid-style tracing.
