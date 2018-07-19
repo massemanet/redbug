@@ -1,14 +1,32 @@
 Definitions.
 
+%whitespace
 WS = [\000-\s]
+
+% separators
+S = ->|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=|_|#{
+
+% types
 T = atom|float|integer|list|number|pid|port|reference|tuple|map|binary|function
+
+% comparison operators
+C = >|>=|<|=<|=:=|==|=/=|/=
+
+% arithmetic operators
+A = \+|-|\*|div|rem|band|bor|bxor|bnot|bsl|bsr
+
+% boolean operators
+B = and|or|andalso|orelse|xor
+
+% BIFs
+F = abs|element|hd|length|node|round|size|tl|trunc
 
 Rules.
 
 {WS}+ :
   skip_token.
 
-(->|when|\(|\)|\[|\]|{|}|;|:|#|,|=|_|#{) :
+({S}) :
   {token, {to_atom(TokenChars), TokenLine}}.
 
 is_({T}) :
@@ -20,19 +38,19 @@ is_record :
 self :
   {token, {'bif0', TokenLine, to_atom(TokenChars)}}.
 
-(abs|element|hd|length|node|round|size|tl|trunc) :
+({F}) :
   {token, {'bif1', TokenLine, to_atom(TokenChars)}}.
 
-(>|>=|<|=<|=:=|==|=/=|/=) :
+({C}) :
   {token, {'comparison_op', TokenLine, to_atom(TokenChars)}}.
 
-(\+|-|\*|div|rem|band|bor|bxor|bnot|bsl|bsr) :
+({A}) :
   {token, {'arithmetic_op', TokenLine, to_atom(TokenChars)}}.
 
 (not) :
   {token, {'boolean_op1', TokenLine, to_atom(TokenChars)}}.
 
-(and|or|andalso|orelse|xor) :
+({B}) :
   {token, {'boolean_op2', TokenLine, to_atom(TokenChars)}}.
 
 [0-9]+ :
@@ -42,16 +60,16 @@ self :
   {token, {'variable', TokenLine, TokenChars}}.
 
 "([^"]|\\")*" :
-  {token, {'string', TokenLine, trim(1, TokenChars)}}.
+  {token, {'string', TokenLine, trim(TokenChars)}}.
 
 [a-z][A-Z0-9a-z_]* :
   {token, {'atom', TokenLine, to_atom(TokenChars)}}.
 
 '([^'|\\'])*' :
-  {token, {'atom', TokenLine, to_atom(trim(1, TokenChars))}}.
+  {token, {'atom', TokenLine, to_atom(trim(TokenChars))}}.
 
-<<"([^"]|\\")*">> :
-  {token, {'bin', TokenLine, TokenChars}}.
+<<("([^"]|\\")*"|[^>]*)*>> :
+  {token, {'bin', TokenLine, to_binary(TokenChars)}}.
 
 Erlang code.
 
@@ -61,5 +79,11 @@ to_atom(Str) ->
 to_int(Str) ->
     list_to_integer(Str).
 
-trim(N, S) ->
-    lists:reverse(lists:nthtail(N, lists:reverse(lists:nthtail(N, S)))).
+to_binary(Str) ->
+    case erl_eval:eval_str(Str++". ") of
+        {ok, Bin} -> Bin;
+        {error, _} -> throw({error, {0, ?MODULE, {malformed_binary, Str}}, 0})
+    end.
+
+trim(Str) ->
+    lists:reverse(tl(lists:reverse(tl(Str)))).
