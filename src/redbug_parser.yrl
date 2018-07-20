@@ -1,15 +1,17 @@
 Nonterminals
   rtp
-  mfa module function args terms term list tuple
+  mfa module function args arity
+  terms term list tuple
   record map record_fields record_field map_fields map_field
   guards guard guard_value test
   actions.
 
 Terminals
-  '->' 'when' '(' ')' '[' ']' '{' '}' ':' ';' '#' ',' '=' ':=' '_' '#{'
+  '(' ')' '[' ']' '{' '}'
+  '->' 'when' ':' ';' '#' ',' '=' ':=' '_' '#{' '/' '|' '++'
   'variable' 'bin' 'float' 'int' 'atom' 'string'
   'comparison_op' 'arithmetic_op' 'boolean_op'
-  'type_test1' 'type_test2' 'bif0' 'bif1'.
+  'type_test1' 'type_test2' 'bif0' 'bif1' 'bif2'.
 
 Rootsymbol rtp.
 
@@ -24,6 +26,7 @@ rtp -> mfa 'when' guards '->' actions : {'$1', '$3', '$5'}.
 
 mfa -> module                           : {call, '$1', '_', '_'}.
 mfa -> module ':' function              : {call, '$1', '$3', '_'}.
+mfa -> module ':' function '/' arity    : {call, '$1', '$3', '$5'}.
 mfa -> module ':' function '(' args ')' : {call, '$1', '$3', '$5'}.
 
 module -> 'atom' : '$1'.
@@ -32,6 +35,8 @@ function -> 'atom' : '$1'.
 function -> '_'    : '$1'.
 
 args -> terms : '$1'.
+
+arity -> 'int' : '$1'.
 
 terms -> '$empty'       : [].
 terms -> term           : ['$1'].
@@ -49,7 +54,9 @@ term -> tuple      : '$1'.
 term -> record     : '$1'.
 term -> map        : '$1'.
 
-list -> '[' terms ']' : {list, '$2'}.
+list -> '[' terms ']'          : {list, '$2'}.
+list -> '[' terms '|' term ']' : {cons, '$2', '$4'}.
+list -> term '++' term         : {cat, '$1', '$3'}.
 
 tuple -> '{' terms '}' : {tuple, '$2'}.
 
@@ -83,11 +90,12 @@ test -> type_test2 '(' 'variable' ',' 'variable' ')' : {'$1', ['$3', '$5']}.
 test -> type_test2 '(' 'atom' ',' 'variable' ')'     : {'$1', ['$3', '$5']}.
 test -> guard_value 'comparison_op' guard_value      : {'$2', ['$1', '$3']}.
 
-guard_value -> 'variable'                              : '$1'.
-guard_value -> bif0 '(' ')'                            : {'$1', []}.
-guard_value -> bif1 '(' guard_value ')'                : {'$1', ['$3']}.
-guard_value -> guard_value 'arithmetic_op' guard_value : {'$2', ['$1', '$3']}.
+guard_value -> term                                     : '$1'.
+guard_value -> bif0 '(' ')'                             : {'$1', []}.
+guard_value -> bif1 '(' guard_value ')'                 : {'$1', ['$3']}.
+guard_value -> bif2 '(' guard_value ',' guard_value ')' : {'$1', ['$3', '$5']}.
+guard_value -> guard_value 'arithmetic_op' guard_value  : {'$2', ['$1', '$3']}.
 
-actions -> 'atom'             : {actions, ['$1']}. % return, stack
-actions -> actions ',' 'atom' : {actions, '$1' ++ ['$3']}. % return, stack
-actions -> actions ';' 'atom' : {actions, '$1' ++ ['$3']}. % return, stack
+actions -> 'atom'             : ['$1'].
+actions -> actions ',' 'atom' : '$1' ++ ['$3'].
+actions -> actions ';' 'atom' : '$1' ++ ['$3'].

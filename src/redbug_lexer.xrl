@@ -4,7 +4,7 @@ Definitions.
 WS = [\000-\s]
 
 % separators
-S = ->|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=|_|#{
+S = ->|\+\+|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=|_|#{|/|\|
 
 % types
 T = atom|float|integer|list|number|pid|port|reference|tuple|map|binary|function
@@ -19,7 +19,9 @@ A = \+|-|\*|div|rem|band|bor|bxor|bnot|bsl|bsr
 B = and|or|andalso|orelse|xor
 
 % BIFs
-F = abs|element|hd|length|node|round|size|tl|trunc
+F0 = self
+F1 = abs|hd|length|node|round|size|tl|trunc
+F2 = element
 
 Rules.
 
@@ -38,8 +40,14 @@ is_record :
 self :
   {token, {'bif0', TokenLine, to_atom(TokenChars)}}.
 
-({F}) :
+({F0}) :
+  {token, {'bif0', TokenLine, to_atom(TokenChars)}}.
+
+({F1}) :
   {token, {'bif1', TokenLine, to_atom(TokenChars)}}.
+
+({F2}) :
+  {token, {'bif2', TokenLine, to_atom(TokenChars)}}.
 
 ({C}) :
   {token, {'comparison_op', TokenLine, to_atom(TokenChars)}}.
