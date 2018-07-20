@@ -9,16 +9,17 @@ S = ->|\+\+|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=|_|#{|/|\|
 % types
 T = atom|float|integer|list|number|pid|port|reference|tuple|map|binary|function
 
-% comparison operators
+% comparison operators, binary
 C = >|>=|<|=<|=:=|==|=/=|/=
 
-% arithmetic operators
+% arithmetic operators, binary
 A = \+|-|\*|div|rem|band|bor|bxor|bnot|bsl|bsr
 
-% boolean operators
-B = and|or|andalso|orelse|xor
+% boolean operators, unary/binary
+B1 = not
+B2 = and|or|andalso|orelse|xor
 
-% BIFs
+% BIFs, split by arity
 F0 = self
 F1 = abs|hd|length|node|round|size|tl|trunc
 F2 = element
@@ -37,9 +38,6 @@ is_({T}) :
 is_record :
   {token, {'type_test2', TokenLine, to_atom(TokenChars)}}.
 
-self :
-  {token, {'bif0', TokenLine, to_atom(TokenChars)}}.
-
 ({F0}) :
   {token, {'bif0', TokenLine, to_atom(TokenChars)}}.
 
@@ -55,14 +53,20 @@ self :
 ({A}) :
   {token, {'arithmetic_op', TokenLine, to_atom(TokenChars)}}.
 
-(not) :
+({B1}) :
   {token, {'boolean_op1', TokenLine, to_atom(TokenChars)}}.
 
-({B}) :
+({B2}) :
   {token, {'boolean_op2', TokenLine, to_atom(TokenChars)}}.
 
-[0-9]+ :
-  {token, {'int', TokenLine, to_int(TokenChars)}}.
+\$[\s-~] :
+  {token, {'int', TokenLine, char_to_int(TokenChars)}}.
+
+([2-9]#[0-9]+|[12][0-9]#[0-9]+|3[0-6]#[0-9]+) :
+  {token, {'int', TokenLine, radix_to_int(TokenChars)}}.
+
+-?[0-9]+ :
+  {token, {'int', TokenLine, int_to_int(TokenChars)}}.
 
 [A-Z_][A-Za-z0-9_]* :
   {token, {'variable', TokenLine, TokenChars}}.
@@ -84,7 +88,14 @@ Erlang code.
 to_atom(Str) ->
     list_to_atom(Str).
 
-to_int(Str) ->
+char_to_int([$$, C]) ->
+    C.
+
+radix_to_int(Str) ->
+    {ok, Int} = erl_eval:eval_str(Str++". "),
+    Int.
+
+int_to_int(Str) ->
     list_to_integer(Str).
 
 to_binary(Str) ->

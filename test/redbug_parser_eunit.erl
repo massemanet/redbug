@@ -44,7 +44,7 @@ go() ->
    unit("x:c([string])"),
    unit("x:c(S)when S==x;S==y"),
    unit("x:c(S)when (S==x)or(S==y)"),
-   unit("a:b(X,Y)when is_record(X,rec) and (Y==0), (X==z)"),
+   unit("a:b(X,Y)when is_record(rec,X) and (Y==0), (X==z)"),
    unit("a:b(X,y)when not is_atom(X)"),
    unit("a:b(X,Y)when X==1,Y=/=a"),
    unit("a:b(X,y)when not is_atom(X) -> return"),
@@ -59,6 +59,7 @@ go() ->
    unit("lists:reverse(\"ab\"++\"\")"),
    unit("lists:reverse(\"ab\"++C)when 3<length(C)"),
    unit("a:b([$a,$b|C])"),
+   unit("a:b([22#22|C])"),
    unit("a:_(a)"),
    unit("a:_")].
 

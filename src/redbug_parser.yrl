@@ -10,14 +10,15 @@ Terminals
   '(' ')' '[' ']' '{' '}'
   '->' 'when' ':' ';' '#' ',' '=' ':=' '_' '#{' '/' '|' '++'
   'variable' 'bin' 'float' 'int' 'atom' 'string'
-  'comparison_op' 'arithmetic_op' 'boolean_op'
+  'comparison_op' 'arithmetic_op' 'boolean_op1' 'boolean_op2'
   'type_test1' 'type_test2' 'bif0' 'bif1' 'bif2'.
 
 Rootsymbol rtp.
 
-Left 1 boolean_op.
-Left 2 comparison_op.
-Left 3 arithmetic_op.
+Right 15 boolean_op1.
+Left 10 boolean_op2.
+Left 20 comparison_op.
+Left 30 arithmetic_op.
 
 rtp -> mfa                            : {'$1', '_', '_'}.
 rtp -> mfa '->' actions               : {'$1', '_', '$3'}.
@@ -77,13 +78,15 @@ map_fields -> map_fields ',' map_field : '$1' ++ ['$3'].
 
 map_field -> term ':=' term : {'$1', '$3'}.
 
-guards -> guard                     : '$1'.
-guards -> guards ',' guard          : {'andalso', ['$1', '$3']}.
-guards -> guards ';' guard          : {'orelse', ['$1', '$3']}.
-guards -> guards 'boolean_op' guard : {'$2', ['$1', '$3']}.
+guards -> guard                      : '$1'.
+guards -> guards ',' guard           : {'andalso', ['$1', '$3']}.
+guards -> guards ';' guard           : {'orelse', ['$1', '$3']}.
+guards -> 'boolean_op1' guard        : {'$1', ['$2']}.
+guards -> guards 'boolean_op2' guard : {'$2', ['$1', '$3']}.
 
-guard -> test                   : '$1'.
-guard -> test 'boolean_op' test : {'$2', ['$1', '$3']}.
+guard -> test                    : '$1'.
+guard -> 'boolean_op1' test      : {'$1', ['$2']}.
+guard -> test 'boolean_op2' test : {'$2', ['$1', '$3']}.
 
 test -> type_test1 '(' 'variable' ')'                : {'$1', ['$3']}.
 test -> type_test2 '(' 'variable' ',' 'variable' ')' : {'$1', ['$3', '$5']}.
