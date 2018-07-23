@@ -9,8 +9,14 @@ parse(Str) ->
     end.
 
 scan(Str) ->
-    case catch redbug_lexer:string(Str) of
+    case catch redbug_lexer:string(to_str(Str)) of
         {ok, Tokens, _} -> Tokens;
         {error, {_, _, Error}, _} -> exit({scan_error, Error});
-        {'EXIT', _} -> exit({scan_error, bad_input})
+        {'EXIT', R} -> exit({scan_error, bad_input, R})
     end.
+
+to_str(Atom) when is_atom(Atom) -> atom_to_list(Atom);
+to_str(Bin) when is_binary(Bin) -> binary_to_list(Bin);
+to_str(List) when is_list(List) -> List;
+to_str(_) -> exit(not_string).
+

@@ -4,7 +4,7 @@ Definitions.
 WS = [\000-\s]
 
 % separators
-S = ->|\+\+|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=|_|#{|/|\|
+S = ->|\+\+|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=|#{|/|\|
 
 % types
 T = atom|float|integer|list|number|pid|port|reference|tuple|map|binary|function
@@ -92,16 +92,22 @@ char_to_int([$$, C]) ->
     C.
 
 radix_to_int(Str) ->
-    {ok, Int} = erl_eval:eval_str(Str++". "),
-    Int.
+    case erl_scan:tokens([], Str++". ", 0) of
+        {done, {ok, [{integer, 0, Int}, {dot, 0}], 0}, []} -> Int;
+        _ -> throw({error, {0, ?MODULE, {malformed_int, Str}}, 0})
+    end.
 
 int_to_int(Str) ->
     list_to_integer(Str).
 
 to_binary(Str) ->
-    case erl_eval:eval_str(Str++". ") of
-        {ok, Bin} -> Bin;
-        {error, _} -> throw({error, {0, ?MODULE, {malformed_binary, Str}}, 0})
+    try
+        {done, {ok, Toks, _}, []} = erl_scan:tokens([], Str++". ", 0),
+        {ok, Exprs} = erl_parse:parse_exprs(Toks),
+        {value, Val, _} = erl_eval:exprs(Exprs, erl_eval:new_bindings()),
+        Val
+    catch
+        _:_ -> throw({error, {0, ?MODULE, {malformed_binary, Str}}, 0})
     end.
 
 trim(Str) ->

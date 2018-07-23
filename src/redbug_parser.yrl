@@ -32,8 +32,8 @@ mfa -> module ':' function '(' args ')' : {call, '$1', '$3', '$5'}.
 
 module -> 'atom' : '$1'.
 
-function -> 'atom' : '$1'.
-function -> '_'    : '$1'.
+function -> 'atom'     : '$1'.
+function -> 'variable' : '$1'.
 
 args -> terms : '$1'.
 
@@ -43,7 +43,6 @@ terms -> '$empty'       : [].
 terms -> term           : ['$1'].
 terms -> terms ',' term : '$1' ++ ['$3'].
 
-term -> '_'        : '$1'.
 term -> 'variable' : '$1'.
 term -> 'bin'      : '$1'.
 term -> 'float'    : '$1'.
@@ -78,21 +77,25 @@ map_fields -> map_fields ',' map_field : '$1' ++ ['$3'].
 
 map_field -> term ':=' term : {'$1', '$3'}.
 
+guards -> '(' guards ')'             : '$2'.
 guards -> guard                      : '$1'.
 guards -> guards ',' guard           : {'andalso', ['$1', '$3']}.
 guards -> guards ';' guard           : {'orelse', ['$1', '$3']}.
 guards -> 'boolean_op1' guard        : {'$1', ['$2']}.
 guards -> guards 'boolean_op2' guard : {'$2', ['$1', '$3']}.
 
+guard -> '(' guard ')'           : '$2'.
 guard -> test                    : '$1'.
 guard -> 'boolean_op1' test      : {'$1', ['$2']}.
 guard -> test 'boolean_op2' test : {'$2', ['$1', '$3']}.
 
+test -> '(' test ')'                                 : '$2'.
 test -> type_test1 '(' 'variable' ')'                : {'$1', ['$3']}.
 test -> type_test2 '(' 'variable' ',' 'variable' ')' : {'$1', ['$3', '$5']}.
 test -> type_test2 '(' 'atom' ',' 'variable' ')'     : {'$1', ['$3', '$5']}.
 test -> guard_value 'comparison_op' guard_value      : {'$2', ['$1', '$3']}.
 
+guard_value -> '(' guard_value ')'                      : '$2'.
 guard_value -> term                                     : '$1'.
 guard_value -> bif0 '(' ')'                             : {'$1', []}.
 guard_value -> bif1 '(' guard_value ')'                 : {'$1', ['$3']}.
