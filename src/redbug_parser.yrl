@@ -1,7 +1,7 @@
 Nonterminals
   rtp
   mfa module function args arity
-  terms term list tuple var_or_list
+  terms term list tuple
   record map record_fields record_field map_fields map_field
   guards guard guard_value test
   actions.
@@ -15,10 +15,10 @@ Terminals
 
 Rootsymbol rtp.
 
-Right 15 boolean_op1.
-Left 10 boolean_op2.
-Left 20 comparison_op.
-Left 30 arithmetic_op.
+Left  4 arithmetic_op.
+Left  3 comparison_op.
+Right 2 boolean_op1.
+Left  1 boolean_op2.
 
 rtp -> mfa                                              : {'$1', '_', '_'}.
 rtp -> mfa '->' actions                                 : {'$1', '_', '$3'}.
@@ -48,19 +48,16 @@ term -> 'bin'                                           : lift('$1').
 term -> 'float'                                         : lift('$1').
 term -> 'int'                                           : lift('$1').
 term -> 'atom'                                          : lift('$1').
-term -> 'string'                                        : lift('$1').
 term -> list                                            : '$1'.
 term -> tuple                                           : '$1'.
 term -> record                                          : '$1'.
 term -> map                                             : '$1'.
 
+list -> 'string'                                        : lift('$1').
 list -> '[' terms ']'                                   : '$2'.
 list -> '[' terms '|' term ']'                          : mk_cons('$2', '$4').
-list -> var_or_list '++' var_or_list                    : mk_cat('$1', '$3').
-
-var_or_list -> 'variable'                               : lift('$1').
-var_or_list -> 'string'                                 : lift('$1').
-var_or_list -> list                                     : '$1'.
+list -> list '++' 'variable'                            : mk_cons('$1', lift('$3')).
+list -> list '++' list                                  : mk_cons('$1', '$3').
 
 tuple -> '{' terms '}'                                  : mk_tuple('$2').
 
@@ -114,21 +111,20 @@ Erlang code.
 
 mk_tuple(List) -> list_to_tuple(List).
 
-mk_cat(A, B) -> {cat, A, B}.
-
-mk_cons(A, B) -> {cons, A, B}.
+mk_cons(H, T) -> lists:foldr(fun(E,O) -> [E|O] end, T, H).
 
 mk_map(KVs) -> maps:from_list(KVs).
 
 mk_record(Mod, Rec, KVs) -> {record, {lift(Mod), lift(Rec), KVs}}.
 
-chk_action({atom, Line, Act}) ->
-    case lists:member(Act, [stack, return, time, count]) of
-        true -> Act;
-        false -> return_error(Line, io_lib:format("illegal action; ~p", [Act]))
-    end.
+chk_action({atom, _, stack})  -> {action, {message,{process_dump}}};
+chk_action({atom, _, return}) -> {action, exception_trace};
+chk_action({atom, _, time})   -> {flag, call_time};
+chk_action({atom, _, count})  -> {flag,call_count};
+chk_action({atom, L, Act})    -> return_error(L, io_lib:format("illegal action; ~p", [Act])).
 
 lift({variable, _, "_"}) -> '_';
-lift({_, _, Value}) -> Value;
-lift({Token, _}) -> Token;
-lift(X) -> return_error(0, io_lib:format("internal parser error; ~p", [X])).
+lift({variable, _, Var}) -> list_to_atom("$_"++Var);
+lift({_, _, Value})      -> Value;
+lift({Token, _})         -> Token;
+lift(X)                  -> return_error(0, io_lib:format("internal parser error; ~p", [X])).
