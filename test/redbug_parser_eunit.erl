@@ -64,4 +64,4 @@ go() ->
    unit("a:_")].
 
 unit(Str) ->
-  {Str, catch redbug_compiler:parse(Str)}.
+  {Str, catch redbug_compiler:string(Str)}.

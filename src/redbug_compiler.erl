@@ -1,15 +1,24 @@
 -module(redbug_compiler).
--export([parse/1]).
+-export([string/1]).
+
+-define(SPAWN(Expr),
+        begin
+            {__P, __R} = spawn_monitor(fun() -> exit(Expr) end),
+            receive {'DOWN', __R, process, __P, __Ret} -> __Ret end
+        end).
+
+string(Str) ->
+    parse(to_str(Str)).
 
 parse(Str) ->
-    case catch redbug_parser:parse(scan(Str)) of
+    case ?SPAWN(redbug_parser:parse(scan(Str))) of
         {ok, Tree} -> Tree;
         {error, {_, _, Error}} -> exit({parse_error, lists:flatten(Error)});
-        {'EXIT', Error} -> exit(Error)
+        Error -> exit(Error)
     end.
 
 scan(Str) ->
-    case catch redbug_lexer:string(to_str(Str)) of
+    case catch redbug_lexer:string(Str) of
         {ok, Tokens, _} -> Tokens;
         {error, {_, _, Error}, _} -> exit({scan_error, Error});
         {'EXIT', R} -> exit({scan_error, bad_input, R})

@@ -28,7 +28,7 @@ rtp -> mfa 'when' guards '->' actions                   : {'$1', '$3', '$5'}.
 mfa -> module                                           : {'$1', '_', '_'}.
 mfa -> module ':' function                              : {'$1', '$3', '_'}.
 mfa -> module ':' function '/' arity                    : {'$1', '$3', '$5'}.
-mfa -> module ':' function '(' args ')'                 : {'$1', '$3', '$5'}.
+mfa -> module ':' function '(' args ')'                 : {'$1', '$3', fix_vars('$5')}.
 
 module -> 'atom'                                        : lift('$1').
 
@@ -56,7 +56,7 @@ term -> map                                             : '$1'.
 list -> 'string'                                        : lift('$1').
 list -> '[' terms ']'                                   : '$2'.
 list -> '[' terms '|' term ']'                          : mk_cons('$2', '$4').
-list -> list '++' 'variable'                            : mk_cons('$1', lift('$3')).
+list -> list '++' 'variable'                            : mk_cons('$1', '$3').
 list -> list '++' list                                  : mk_cons('$1', '$3').
 
 tuple -> '{' terms '}'                                  : mk_tuple('$2').
@@ -91,9 +91,9 @@ guard -> 'boolean_op1' test                             : {lift('$1'), ['$2']}.
 guard -> test 'boolean_op2' test                        : {lift('$2'), ['$1', '$3']}.
 
 test -> '(' test ')'                                    : '$2'.
-test -> type_test1 '(' 'variable' ')'                   : {lift('$1'), [lift('$3')]}.
-test -> type_test2 '(' 'variable' ',' 'variable' ')'    : {lift('$1'), [lift('$3'), lift('$5')]}.
-test -> type_test2 '(' 'atom' ',' 'variable' ')'        : {lift('$1'), [lift('$3'), lift('$5')]}.
+test -> type_test1 '(' 'variable' ')'                   : {lift('$1'), ['$3']}.
+test -> type_test2 '(' 'variable' ',' 'variable' ')'    : {lift('$1'), ['$3', '$5']}.
+test -> type_test2 '(' 'atom' ',' 'variable' ')'        : {lift('$1'), [lift('$3'), '$5']}.
 test -> guard_value 'comparison_op' guard_value         : {lift('$2'), ['$1', '$3']}.
 
 guard_value -> '(' guard_value ')'                      : '$2'.
@@ -123,8 +123,34 @@ chk_action({atom, _, time})   -> {flag, call_time};
 chk_action({atom, _, count})  -> {flag,call_count};
 chk_action({atom, L, Act})    -> return_error(L, io_lib:format("illegal action; ~p", [Act])).
 
-lift({variable, _, "_"}) -> '_';
-lift({variable, _, Var}) -> list_to_atom("$_"++Var);
-lift({_, _, Value})      -> Value;
-lift({Token, _})         -> Token;
-lift(X)                  -> return_error(0, io_lib:format("internal parser error; ~p", [X])).
+lift({'variable', _, "_"}) -> '_';
+lift({'variable', L, Var}) -> lift_var(Var, L);
+lift({_, _, Value})        -> Value;
+lift({Token, _})           -> Token.
+
+fix_vars(X) ->
+    putv(bound, true),
+    X.
+
+lift_var(Var, L) ->
+    case getv(Var, nil) of
+        nil -> lift_var(getv(bound, false), Var, L);
+        V -> V
+    end.
+
+lift_var(false, Var, _) -> putv(Var, list_to_atom("$"++integer_to_list(bumpv(count))));
+lift_var(true, Var, L) -> return_error(L, io_lib:format("unbound variable; ~p", [Var])).
+
+%% a global dictionary
+bumpv(Key) ->
+    putv(Key, getv(Key, 0)+1).
+
+getv(Key, Def) ->
+    case get({redbug_parser, Key}) of
+        undefined -> Def;
+        Val -> Val
+    end.
+
+putv(Var, V) ->
+    put({redbug_parser, Var}, V),
+    V.
