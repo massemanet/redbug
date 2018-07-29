@@ -56,13 +56,13 @@ term -> map                                             : '$1'.
 list -> 'string'                                        : lift('$1').
 list -> '[' terms ']'                                   : '$2'.
 list -> '[' terms '|' term ']'                          : mk_cons('$2', '$4').
-list -> list '++' 'variable'                            : mk_cons('$1', '$3').
+list -> list '++' 'variable'                            : mk_cons('$1', lift('$3')).
 list -> list '++' list                                  : mk_cons('$1', '$3').
 
 tuple -> '{' terms '}'                                  : mk_tuple('$2').
 
-record -> 'atom' '#' 'atom'                             : mk_record('$1', '$3', []).
-record -> 'atom' '#' 'atom' '{' record_fields '}'       : mk_record('$1', '$3', '$5').
+record -> 'atom' '#' 'atom'                             : mk_record(lift('$1'), lift('$3'), []).
+record -> 'atom' '#' 'atom' '{' record_fields '}'       : mk_record(lift('$1'), lift('$3'), '$5').
 
 record_fields -> '$empty'                               : [].
 record_fields -> record_field                           : ['$1'].
@@ -91,17 +91,17 @@ guard -> 'boolean_op1' test                             : {lift('$1'), ['$2']}.
 guard -> test 'boolean_op2' test                        : {lift('$2'), ['$1', '$3']}.
 
 test -> '(' test ')'                                    : '$2'.
-test -> type_test1 '(' 'variable' ')'                   : {lift('$1'), ['$3']}.
-test -> type_test2 '(' 'variable' ',' 'variable' ')'    : {lift('$1'), ['$3', '$5']}.
-test -> type_test2 '(' 'atom' ',' 'variable' ')'        : {lift('$1'), [lift('$3'), '$5']}.
+test -> 'type_test1' '(' 'variable' ')'                 : {lift('$1'), [lift('$3')]}.
+test -> 'type_test2' '(' 'variable' ',' 'variable' ')'  : {lift('$1'), [lift('$3'), lift('$5')]}.
+test -> 'type_test2' '(' 'atom' ',' 'variable' ')'      : {lift('$1'), [lift('$3'), lift('$5')]}.
 test -> guard_value 'comparison_op' guard_value         : {lift('$2'), ['$1', '$3']}.
 
-guard_value -> '(' guard_value ')'                      : '$2'.
-guard_value -> term                                     : '$1'.
-guard_value -> bif0 '(' ')'                             : {lift('$1'), []}.
-guard_value -> bif1 '(' guard_value ')'                 : {lift('$1'), ['$3']}.
-guard_value -> bif2 '(' guard_value ',' guard_value ')' : {lift('$1'), ['$3', '$5']}.
-guard_value -> guard_value 'arithmetic_op' guard_value  : {lift('$2'), ['$1', '$3']}.
+guard_value -> '(' guard_value ')'                        : '$2'.
+guard_value -> term                                       : '$1'.
+guard_value -> 'bif0' '(' ')'                             : {lift('$1'), []}.
+guard_value -> 'bif1' '(' guard_value ')'                 : {lift('$1'), ['$3']}.
+guard_value -> 'bif2' '(' guard_value ',' guard_value ')' : {lift('$1'), ['$3', '$5']}.
+guard_value -> guard_value 'arithmetic_op' guard_value    : {lift('$2'), ['$1', '$3']}.
 
 actions -> 'atom'                                       : [chk_action('$1')].
 actions -> actions ',' 'atom'                           : '$1' ++ [chk_action('$3')].
@@ -115,7 +115,7 @@ mk_cons(H, T) -> lists:foldr(fun(E,O) -> [E|O] end, T, H).
 
 mk_map(KVs) -> maps:from_list(KVs).
 
-mk_record(Mod, Rec, KVs) -> {record, {lift(Mod), lift(Rec), KVs}}.
+mk_record(Mod, Rec, KVs) -> {record, {Mod, Rec, KVs}}.
 
 chk_action({atom, _, stack})  -> {action, {message,{process_dump}}};
 chk_action({atom, _, return}) -> {action, exception_trace};
@@ -128,20 +128,26 @@ lift({'variable', L, Var}) -> lift_var(Var, L);
 lift({_, _, Value})        -> Value;
 lift({Token, _})           -> Token.
 
+%% after we've processed the args (where vars can be unbound) we call this to
+%% indicate that from now on (in guards) vars must be bound
 fix_vars(X) ->
     putv(bound, true),
     X.
 
+% is the var bound? if so, good.
 lift_var(Var, L) ->
     case getv(Var, nil) of
         nil -> lift_var(getv(bound, false), Var, L);
         V -> V
     end.
 
+%% we've seen an unbound var. either create it (if we're parsing args), or throw a syntax
+%% error (if we're parsing guards)
 lift_var(false, Var, _) -> putv(Var, list_to_atom("$"++integer_to_list(bumpv(count))));
 lift_var(true, Var, L) -> return_error(L, io_lib:format("unbound variable; ~p", [Var])).
 
-%% a global dictionary
+%% a global dictionary. used to store the bound vars, the count of vars, and whether
+%% we're currently allowing creation of new vars.
 bumpv(Key) ->
     putv(Key, getv(Key, 0)+1).
 

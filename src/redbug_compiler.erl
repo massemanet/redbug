@@ -1,5 +1,5 @@
 -module(redbug_compiler).
--export([string/1]).
+-export([string/1, parse/1, scan/1]).
 
 -define(SPAWN(Expr),
         begin
