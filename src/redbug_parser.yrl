@@ -53,7 +53,7 @@ term -> tuple                                           : {tuple, '$1'}.
 term -> record                                          : {record, '$1'}.
 term -> map                                             : {map, '$1'}.
 
-list -> 'string'                                        : element(3, '$1').
+list -> 'string'                                        : [{int, 0, I} || I <- element(3, '$1')].
 list -> '[' terms ']'                                   : '$2'.
 list -> '[' terms '|' term ']'                          : mk_cons('$2', '$4').
 list -> list '++' 'variable'                            : mk_cons('$1', '$3').
@@ -68,7 +68,7 @@ record_fields -> '$empty'                               : [].
 record_fields -> record_field                           : ['$1'].
 record_fields -> record_fields ',' record_field         : '$1' ++ ['$3'].
 
-record_field -> 'atom' '=' term                         : {'$1', '$3'}.
+record_field -> 'atom' '=' term                         : {tuple, ['$1', '$3']}.
 
 map -> '#{' map_fields '}'                              : '$2'.
 
@@ -76,8 +76,8 @@ map_fields -> '$empty'                                  : [].
 map_fields -> map_field                                 : ['$1'].
 map_fields -> map_fields ',' map_field                  : '$1' ++ ['$3'].
 
-map_field -> term ':=' term                             : {'$1', '$3'}.
-map_field -> term '=>' term                             : {'$1', '$3'}.
+map_field -> term ':=' term                             : {tuple, ['$1', '$3']}.
+map_field -> term '=>' term                             : {tuple, ['$1', '$3']}.
 
 guards -> '(' guards ')'                                : '$2'.
 guards -> guard                                         : '$1'.
