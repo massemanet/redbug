@@ -4,7 +4,7 @@ Definitions.
 WS = [\000-\s]
 
 % separators
-S = ->|\+\+|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=|#{|/|\|
+S = ->|\+\+|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=>|=|#{|/|\|
 
 % types
 T = atom|float|integer|list|number|pid|port|reference|tuple|map|binary|function

@@ -3,6 +3,7 @@
 .\#*
 /_build/
 \#*
+erl_crash.dump
 foo*.trc
 redbug.txt
 src/redbug_lexer.erl
