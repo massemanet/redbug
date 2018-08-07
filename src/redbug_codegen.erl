@@ -14,23 +14,30 @@ generate({MFA, G, As}) ->
     {{M, F, Arity}, [{Args, Guard, Actions}], Flags2}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% module, function, argity, arguments
+%% module, function, arity, arguments
 
 mk_mfa({M, F, As}) ->
     Mod = mk_mod(M),
     {Fun, Flags} = mk_fun(F),
-    {Args, Bindings} = mk_args(As),
-    {Mod, Fun, length(Args), Args, Bindings, Flags}.
+    {Arity, Args, Bindings} = mk_args(As),
+    {Mod, Fun, Arity, Args, Bindings, Flags}.
 
 mk_mod({'atom', _, Mod}) -> Mod.
 
-mk_fun({'variable', _, _}) -> {'_', [global]};
-mk_fun({'atom', _, Fun}) -> {Fun, [local]}.
+mk_fun('_') ->
+    {'_', [local]};
+mk_fun({'variable', _, _}) ->
+    {'_', [global]};
+mk_fun({'atom', _, Fun}) ->
+    {Fun, [local]}.
 
 mk_args('_') ->
-    mk_args([]);
+    {'_', '_', #bindings{}};
+mk_args({int, _, Arity}) ->
+    {Arity, '_', #bindings{}};
 mk_args(As) ->
-    lift_list(As, #bindings{}).
+    {Args, Bindings} = lift_list(As, #bindings{}),
+    {length(Args), Args, Bindings}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% guards
@@ -58,20 +65,41 @@ chk_action({atom, L, Act}, _)           -> exit({illegal_action, L, Act}).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% make concrete values
 
-lift({'variable', _, "_"}, Bindings) -> {'_', Bindings};
-lift({'variable', L, Var}, Bindings) -> lift_var(Var, L, Bindings);
+%% values
+lift({atom, _, Value}, Bindings) -> {Value, Bindings};
+lift({int, _, Value}, Bindings)  -> {Value, Bindings};
+lift({bin, _, Value}, Bindings)  -> {Value, Bindings};
+%% variables
+lift({variable, _, "_"}, Bindings) -> {'_', Bindings};
+lift({variable, L, Var}, Bindings) -> lift_var(Var, L, Bindings);
+%% composite terms
 lift({tuple, Es}, Bindings)          -> lift_tuple(Es, Bindings);
 lift({list, Es}, Bindings)           -> lift_list(Es, Bindings);
 lift({map, KVs}, Bindings)           -> lift_map(KVs, Bindings);
 lift({record, Mod, Rec, KVs}, Binds) -> lift_record(Mod, Rec, KVs, Binds);
-lift({{type_test1, _, Test}, Args}, Bindings) ->
-    {[Arg], _} = lift_list(Args, Bindings),
-    {{Test, Arg}, Bindings};
-lift({{comparison_op, _, Op}, Args}, Bindings) ->
+%% operators and functions
+lift({{comparison_op, _, Op}, Args}, Bindings) -> lift2(Op, Args, Bindings);
+lift({{arithmetic_op, _, Op}, Args}, Bindings) -> lift2(Op, Args, Bindings);
+lift({{boolean_op1, _, Op}, Args}, Bindings)   -> lift1(Op, Args, Bindings);
+lift({{boolean_op2, _, Op}, Args}, Bindings)   -> lift2(Op, Args, Bindings);
+lift({{type_test1, _, Test}, Args}, Bindings)  -> lift1(Test, Args, Bindings);
+lift({{type_test2, _, Test}, Args}, Bindings)  -> lift2(Test, Args, Bindings);
+lift({{bif1, _, Bif}, Args}, Bindings)         -> lift1(Bif, Args, Bindings);
+lift({{bif2, _, Bif}, Args}, Bindings)         -> lift2(Bif, Args, Bindings);
+lift({{bif3, _, Bif}, Args}, Bindings)         -> lift3(Bif, Args, Bindings).
+
+%% different arity functions
+lift1(Op, Args, Bindings) ->
+    {[Arg1], _} = lift_list(Args, Bindings),
+    {{Op, Arg1}, Bindings}.
+
+lift2(Op, Args, Bindings) ->
     {[Arg1, Arg2], _} = lift_list(Args, Bindings),
-    {{Op, Arg1, Arg2}, Bindings};
-lift({_, _, Value}, Bindings)        -> {Value, Bindings};
-lift({Token, _}, Bindings)           -> {Token, Bindings}.
+    {{Op, Arg1, Arg2}, Bindings}.
+
+lift3(Op, Args, Bindings) ->
+    {[Arg1, Arg2, Arg3], _} = lift_list(Args, Bindings),
+    {{Op, Arg1, Arg2, Arg3}, Bindings}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% container types; records, maps, lists, tuples
@@ -90,11 +118,19 @@ lift_tuple(Es, Bindings) ->
     {list_to_tuple(Ts), Binds}.
 
 lift_list(Es, Bindings) ->
-   lists:foldr(fun lifter/2, {[], Bindings}, Es).
+    lift_list(Es, [], Bindings).
 
-lifter(Tree, {Es, Bindings}) ->
-    {E, Binds} = lift(Tree, Bindings),
-    {[E|Es], Binds}.
+%% we need to handle improper lists, i.e. when the tail is not a list
+%% such as [a|b]
+
+lift_list([], O, Bindings) ->
+    {lists:reverse(O), Bindings};
+lift_list(E, O, Bindings) when not is_list(E) ->
+    {LE, Binds} = lift(E, Bindings),
+    {lists:foldl(fun(H, T) -> [H|T] end, LE, O), Binds};
+lift_list([E|Es], O, Bindings) ->
+    {LE, Binds} = lift(E, Bindings),
+    lift_list(Es, [LE|O], Binds).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% variables. if we see a new var, we can either create a new binding
@@ -106,6 +142,8 @@ lift_var(Var, L, Bindings) ->
         nil -> mk_binding(Var, L, Bindings);
         Binding -> {Binding, Bindings}
     end.
+
+%% bindings. can be fixed or mutable
 
 mk_binding(Var, L, #bindings{mutable=false}) ->
     exit({unbound_variable, L, Var});
@@ -120,6 +158,7 @@ get_binding(Var, Bindings, Def) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% records. records are identified by the {module name, record name} tuple.
 %% we get the record info (i.e. the list of field names) from the beam file.
+
 get_rec_fields(Mod, Rec) ->
     get_fields(Rec, get_dbgi(get_filename(Mod))).
 
@@ -140,7 +179,7 @@ get_dbgi(Filename) ->
 
 get_fields(Rec, Dbgi) ->
     [Fs] = [ Fs || {attribute,_,record,{R, Fs}} <- Dbgi, R == Rec],
-    [F || {_, {_, _, {atom, _, F}}, _} <- Fs]. 
+    [F || {_, {_, _, {atom, _, F}}, _} <- Fs].
 
 mk_rec(Rec, KVs, Fields) ->
     Empty = setelement(1, Rec, erlang:make_tuple(length(Fields)+1, '_')),

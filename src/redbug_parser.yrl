@@ -9,7 +9,7 @@ Nonterminals
 Terminals
   '(' ')' '[' ']' '{' '}'
   '->' 'when' ':' ';' '#' ',' '=' ':=' '=>' '#{' '/' '|' '++'
-  'variable' 'bin' 'float' 'int' 'atom' 'string'
+  'variable' 'bin' 'int' 'atom' 'string'
   'comparison_op' 'arithmetic_op' 'boolean_op1' 'boolean_op2'
   'type_test1' 'type_test2' 'bif0' 'bif1' 'bif2'.
 
@@ -45,7 +45,6 @@ terms -> terms ',' term                                 : '$1' ++ ['$3'].
 
 term -> 'variable'                                      : '$1'.
 term -> 'bin'                                           : '$1'.
-term -> 'float'                                         : '$1'.
 term -> 'int'                                           : '$1'.
 term -> 'atom'                                          : '$1'.
 term -> list                                            : {list, '$1'}.
@@ -81,8 +80,8 @@ map_field -> term '=>' term                             : {tuple, ['$1', '$3']}.
 
 guards -> '(' guards ')'                                : '$2'.
 guards -> guard                                         : '$1'.
-guards -> guards ',' guard                              : {'andalso', ['$1', '$3']}.
-guards -> guards ';' guard                              : {'orelse', ['$1', '$3']}.
+guards -> guards ',' guard                              : {{boolean_op2, 0, 'andalso'}, ['$1', '$3']}.
+guards -> guards ';' guard                              : {{boolean_op2, 0, 'orelse'}, ['$1', '$3']}.
 guards -> 'boolean_op1' guard                           : {'$1', ['$2']}.
 guards -> guards 'boolean_op2' guard                    : {'$2', ['$1', '$3']}.
 
