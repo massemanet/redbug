@@ -67,7 +67,7 @@ record_fields -> '$empty'                               : [].
 record_fields -> record_field                           : ['$1'].
 record_fields -> record_fields ',' record_field         : '$1' ++ ['$3'].
 
-record_field -> 'atom' '=' term                         : {tuple, ['$1', '$3']}.
+record_field -> 'atom' '=' term                         : {field, ['$1', '$3']}.
 
 map -> '#{' map_fields '}'                              : '$2'.
 
@@ -75,8 +75,8 @@ map_fields -> '$empty'                                  : [].
 map_fields -> map_field                                 : ['$1'].
 map_fields -> map_fields ',' map_field                  : '$1' ++ ['$3'].
 
-map_field -> term ':=' term                             : {tuple, ['$1', '$3']}.
-map_field -> term '=>' term                             : {tuple, ['$1', '$3']}.
+map_field -> term ':=' term                             : {field, ['$1', '$3']}.
+map_field -> term '=>' term                             : {field, ['$1', '$3']}.
 
 guards -> '(' guards ')'                                : '$2'.
 guards -> guard                                         : '$1'.

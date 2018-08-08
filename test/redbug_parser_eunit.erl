@@ -421,7 +421,10 @@ go() ->
       unit("maps:to_list(D)when is_map(D)"))].
 
 assertEqual(Expected, {Input, Output}) ->
-  {Input, Output, Expected}.
+  case Output == Expected of
+    true -> {};
+    false -> {Input, Output, Expected}
+  end.
 
 unit(Str) ->
   {Str, catch redbug_compiler:compile(Str)}.

@@ -19,7 +19,7 @@ generate({MFA, G, As}) ->
 mk_mfa({M, F, As}) ->
     Mod = mk_mod(M),
     {Fun, Flags} = mk_fun(F),
-    {Arity, Args, Bindings} = mk_args(As),
+    {Arity, Args, Bindings} = mk_args(As, Fun),
     {Mod, Fun, Arity, Args, Bindings, Flags}.
 
 mk_mod({'atom', _, Mod}) -> Mod.
@@ -31,13 +31,16 @@ mk_fun({'variable', _, _}) ->
 mk_fun({'atom', _, Fun}) ->
     {Fun, [local]}.
 
-mk_args('_') ->
+mk_args('_', _) ->
     {'_', '_', #bindings{}};
-mk_args({int, _, Arity}) ->
+mk_args({int, _, Arity}, _) ->
     {Arity, '_', #bindings{}};
-mk_args(As) ->
+mk_args(As, Fun) ->
     {Args, Bindings} = lift_list(As, #bindings{}),
-    {length(Args), Args, Bindings}.
+    case Fun of
+        '_' -> {'_', Args, Bindings};
+        _ -> {length(Args), Args, Bindings}
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% guards
@@ -54,10 +57,10 @@ mk_guard(G, Bindings, Flags) ->
 mk_actions('_', Flags) ->
     {[], Flags};
 mk_actions(As, Flags) ->
-    lists:foldl(fun chk_action/2, {[], Flags}, As).
+    lists:foldr(fun chk_action/2, {[], Flags}, As).
 
 chk_action({atom, _, stack}, {As, Fs})  -> {[{message,{process_dump}}|As], Fs};
-chk_action({atom, _, return}, {As, Fs}) -> {[exception_trace|As], Fs};
+chk_action({atom, _, return}, {As, Fs}) -> {[{exception_trace}|As], Fs};
 chk_action({atom, _, time}, {As, Fs})   -> {As, [call_time|Fs]};
 chk_action({atom, _, count}, {As, Fs})  -> {As, [call_count|Fs]};
 chk_action({atom, L, Act}, _)           -> exit({illegal_action, L, Act}).
@@ -76,6 +79,7 @@ lift({variable, L, Var}, Bindings) -> lift_var(Var, L, Bindings);
 lift({tuple, Es}, Bindings)          -> lift_tuple(Es, Bindings);
 lift({list, Es}, Bindings)           -> lift_list(Es, Bindings);
 lift({map, KVs}, Bindings)           -> lift_map(KVs, Bindings);
+lift({field, KV}, Bindings)          -> lift_field(KV, Bindings);
 lift({record, Mod, Rec, KVs}, Binds) -> lift_record(Mod, Rec, KVs, Binds);
 %% operators and functions
 lift({{comparison_op, _, Op}, Args}, Bindings) -> lift2(Op, Args, Bindings);
@@ -113,9 +117,17 @@ lift_map(KVs, Bindings) ->
     {KVls, Binds} = lift_list(KVs, Bindings),
     {maps:from_list(KVls), Binds}.
 
+lift_field([K, V], B0) ->
+    {KL, B1} = lift(K, B0),
+    {VL, B2} = lift(V, B1),
+    {{KL, VL}, B2}.
+
 lift_tuple(Es, Bindings) ->
     {Ts, Binds} = lift_list(Es, Bindings),
-    {list_to_tuple(Ts), Binds}.
+    case Bindings#bindings.mutable of
+        true -> {list_to_tuple(Ts), Binds};
+        false -> {{list_to_tuple(Ts)}, Binds}
+    end.
 
 lift_list(Es, Bindings) ->
     lift_list(Es, [], Bindings).
