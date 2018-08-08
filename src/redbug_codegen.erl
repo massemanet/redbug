@@ -63,7 +63,7 @@ chk_action({atom, _, stack}, {As, Fs})  -> {[{message,{process_dump}}|As], Fs};
 chk_action({atom, _, return}, {As, Fs}) -> {[{exception_trace}|As], Fs};
 chk_action({atom, _, time}, {As, Fs})   -> {As, [call_time|Fs]};
 chk_action({atom, _, count}, {As, Fs})  -> {As, [call_count|Fs]};
-chk_action({atom, L, Act}, _)           -> exit({illegal_action, L, Act}).
+chk_action({atom, _, Act}, _)           -> die("illegal action", Act).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% make concrete values
@@ -76,11 +76,11 @@ lift({bin, _, Value}, Bindings)  -> {Value, Bindings};
 lift({variable, _, "_"}, Bindings) -> {'_', Bindings};
 lift({variable, L, Var}, Bindings) -> lift_var(Var, L, Bindings);
 %% composite terms
-lift({tuple, Es}, Bindings)          -> lift_tuple(Es, Bindings);
-lift({list, Es}, Bindings)           -> lift_list(Es, Bindings);
-lift({map, KVs}, Bindings)           -> lift_map(KVs, Bindings);
-lift({field, KV}, Bindings)          -> lift_field(KV, Bindings);
-lift({record, Mod, Rec, KVs}, Binds) -> lift_record(Mod, Rec, KVs, Binds);
+lift({tuple, Es}, Bindings)   -> lift_tuple(Es, Bindings);
+lift({list, Es}, Bindings)    -> lift_list(Es, Bindings);
+lift({map, KVs}, Bindings)    -> lift_map(KVs, Bindings);
+lift({field, KV}, Bindings)   -> lift_field(KV, Bindings);
+lift({record, Rec}, Bindings) -> lift_record(Rec, Bindings);
 %% operators and functions
 lift({{comparison_op, _, Op}, Args}, Bindings) -> lift2(Op, Args, Bindings);
 lift({{arithmetic_op, _, Op}, Args}, Bindings) -> lift2(Op, Args, Bindings);
@@ -108,7 +108,7 @@ lift3(Op, Args, Bindings) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% container types; records, maps, lists, tuples
 
-lift_record(Mod, Rec, KVs, Bindings) ->
+lift_record({{atom, _, Mod}, {atom, _, Rec}, KVs}, Bindings) ->
     Fields = get_rec_fields(Mod, Rec),
     {KVls, Binds} = lift_list(KVs, Bindings),
     {mk_rec(Rec, KVls, Fields), Binds}.
@@ -157,8 +157,8 @@ lift_var(Var, L, Bindings) ->
 
 %% bindings. can be fixed or mutable
 
-mk_binding(Var, L, #bindings{mutable=false}) ->
-    exit({unbound_variable, L, Var});
+mk_binding(Var, _, #bindings{mutable=false}) ->
+    die("unbound variable", list_to_atom(Var));
 mk_binding(Var, _, Bindings) ->
     #bindings{count=Count, bs=Bs} = Bindings,
     Binding = list_to_atom("$"++integer_to_list(Count+1)),
@@ -176,7 +176,7 @@ get_rec_fields(Mod, Rec) ->
 
 get_filename(Mod) ->
     case code:which(Mod) of
-        non_existing -> exit({unknown_module, Mod});
+        non_existing -> die("unknown module", Mod);
         Filename -> Filename
     end.
 
@@ -186,21 +186,27 @@ get_dbgi(Filename) ->
         {debug_info_v1, _, {Dbgi, _}} = binary_to_term(DbgiB),
         Dbgi
     catch
-        _:_ -> exit({no_debug_info, Filename})
+        _:_ -> die("no_debug_info", Filename)
     end.
 
 get_fields(Rec, Dbgi) ->
-    [Fs] = [ Fs || {attribute,_,record,{R, Fs}} <- Dbgi, R == Rec],
-    [F || {_, {_, _, {atom, _, F}}, _} <- Fs].
+    case [Fs || {attribute,_,record,{R, Fs}} <- Dbgi, R == Rec] of
+        [] -> die("no such record", Rec);
+        [Fs] -> [F || {_, {_, _, {atom, _, F}}, _} <- Fs]
+    end.
 
 mk_rec(Rec, KVs, Fields) ->
-    Empty = setelement(1, Rec, erlang:make_tuple(length(Fields)+1, '_')),
+    Empty = setelement(1, erlang:make_tuple(length(Fields)+1, '_'), Rec),
     fill_tuple(Empty, KVs, Fields).
 
 fill_tuple(Tuple, [], _) -> Tuple;
 fill_tuple(Tuple, [{K, V}|KVs], Fields) ->
-    fill_tuple(setelement(index(K, Fields)+1, V, Tuple), KVs, Fields).
+    fill_tuple(setelement(index(K, Fields)+1, Tuple, V), KVs, Fields).
 
-index(K, []) -> exit({no_such_field, K});
+index(K, []) -> die("no_such_field", K);
 index(K, [K|_]) -> 1;
 index(K, [_|Ks]) -> 1+index(K, Ks).
+
+%% problem handler
+die(Str, Term) ->
+    exit({gen_error, lists:flatten(io_lib:format(Str++": ~p", [Term]))}).

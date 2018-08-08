@@ -2,9 +2,11 @@
 %% @doc
 %% @end
 
--module(redbug_parser_eunit).
+-module(redbug_compiler_eunit).
 
 -export([go/0]).
+
+-include_lib("kernel/include/file.hrl").
 
 go() ->
   [assertEqual(
@@ -58,6 +60,18 @@ go() ->
    assertEqual(
       {syntax_error,{scan_error,"'"}},
       unit("m:f when '")),
+
+   assertEqual(
+      {syntax_error, x},
+      unit("a:b(X,Y)when is_record(X,rec) and (Y==0)")),
+
+   assertEqual(
+     {syntax_error, y},
+     unit("a:b([222#22|C])")),
+
+   assertEqual(
+     {syntax_error, y},
+     unit("a:b([1#223|C])")),
 
    assertEqual(
       {{f,c,1},
@@ -115,13 +129,13 @@ go() ->
 
    assertEqual(
       {{a,b,2},
-       [{['_','_'],[],[]}],
+       [{'_',[],[]}],
        [local]},
       unit("a:b/2")),
 
    assertEqual(
       {{a,b,2},
-       [{['_','_'],[],[{exception_trace}]}],
+       [{'_',[],[{exception_trace}]}],
        [local]},
       unit("a:b/2->return")),
 
@@ -206,9 +220,9 @@ go() ->
    assertEqual(
       {{a,b,2},
        [{['$1','$2'],
-         [{'and',{is_record,'$1',rec},{'==','$2',0}},{'==','$1',z}],[]}],
+         [{'andalso',{'and',{is_record,rec,'$1'},{'==','$2',0}},{'==','$1',z}}],[]}],
        [local]},
-      unit("a:b(X,Y)when is_record(X,rec) and (Y==0), (X==z)")),
+      unit("a:b(X,Y)when is_record(rec,X) and (Y==0), (X==z)")),
 
    assertEqual(
       {{a,b,2},
@@ -218,7 +232,7 @@ go() ->
 
    assertEqual(
       {{a,b,2},
-       [{['$1','$2'],[{'==','$1',1},{'=/=','$2',a}],[]}],
+       [{['$1','$2'],[{'andalso',{'==','$1',1},{'=/=','$2',a}}],[]}],
        [local]},
       unit("a:b(X,Y)when X==1,Y=/=a")),
 
@@ -230,7 +244,7 @@ go() ->
 
    assertEqual(
       {{a,b,2},
-       [{['$1',y],[{'==',{element,1,'$1'},foo},{'==','$1',z}],[]}],
+       [{['$1',y],[{'andalso',{'==',{element,1,'$1'},foo},{'==','$1',z}}],[]}],
        [local]},
       unit("a:b(X,y)when element(1,X)==foo, (X==z)")),
 
@@ -242,13 +256,15 @@ go() ->
 
    assertEqual(
       {{x,y,2},
-       [{['$1',['$1','$2','$3']],[{'==','$1','$2'},{is_atom,'$3'}],[]}],
+       [{['$1',['$1','$2','$3']],
+         [{'andalso',{'==','$1','$2'},{is_atom,'$3'}}],[]}],
        [local]},
       unit("x:y(A,[A,B,C])when A==B,is_atom(C)")),
 
    assertEqual(
       {{x,y,1},
-       [{[['$1','$2','$3']],[{'=/=','$1','$2'},{is_atom,'$3'}],[]}],
+       [{[['$1','$2','$3']],
+         [{'andalso',{'=/=','$1','$2'},{is_atom,'$3'}}],[]}],
        [local]},
       unit("x:y([A,B,C])when A=/=B,is_atom(C)")),
 
@@ -350,7 +366,7 @@ go() ->
 
    assertEqual(
       {{x,c,1},
-       [{['$1'],[{'==',['$1','$1'],{'++',['$1'],['$1']}}],[]}],
+       [{['$1'],[{'==',['$1','$1'],['$1','$1']}],[]}],
        [local]},
       unit("x:c(A)when [A,A] == [A]++[A]")),
 
@@ -409,16 +425,28 @@ go() ->
       unit("maps:to_list(#{a=>b,c=>D})when D==e")),
 
    assertEqual(
-      {{maps,to_list,1},
-       [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
-       [local]},
-      unit("maps:to_list(#{a:=b,c:=D})when D==e")),
+     {{maps,to_list,1},
+      [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
+      [local]},
+     unit("maps:to_list(#{a:=b,c:=D})when D==e")),
 
    assertEqual(
-      {{maps,to_list,1},
-       [{['$1'],[{'is_map','$1'}],[]}],
-       [local]},
-      unit("maps:to_list(D)when is_map(D)"))].
+     {{maps,to_list,1},
+      [{['$1'],[{'is_map','$1'}],[]}],
+      [local]},
+     unit("maps:to_list(D)when is_map(D)")),
+
+   assertEqual(
+     {{erlang,element,2},
+      [{[2,{}],[],[]}],
+      [local]},
+     unit("erlang:element(2,file#file{inodes=0})")),
+
+   assertEqual(
+     {{erlang,belement,2},
+      [{[2,#file_info{inode=0,type=regular}],[],[]}],
+      [local]},
+     unit("erlang:belement(2,file#file_info{inode=0,type=regular})"))].
 
 assertEqual(Expected, {Input, Output}) ->
   case Output == Expected of
@@ -427,4 +455,4 @@ assertEqual(Expected, {Input, Output}) ->
   end.
 
 unit(Str) ->
-  {Str, catch redbug_compiler:compile(Str)}.
+  {Str, try redbug_compiler:compile(Str) catch exit:R -> R end}.

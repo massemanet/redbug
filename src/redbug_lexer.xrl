@@ -62,7 +62,7 @@ is_record :
 \$[\s-~] :
   {token, {'int', TokenLine, char_to_int(TokenChars)}}.
 
-([2-9]#[0-9]+|[12][0-9]#[0-9]+|3[0-6]#[0-9]+) :
+([2-9]|[12][0-9]|3[0-6])#[0-9]+ :
   {token, {'int', TokenLine, radix_to_int(TokenChars)}}.
 
 -?[0-9]+ :
@@ -94,7 +94,7 @@ char_to_int([$$, C]) ->
 radix_to_int(Str) ->
     case erl_scan:tokens([], Str++". ", 0) of
         {done, {ok, [{integer, 0, Int}, {dot, 0}], 0}, []} -> Int;
-        _ -> throw({error, {0, ?MODULE, {malformed_int, Str}}, 0})
+        _ -> throw({error, {0, ?MODULE, "malformed_int: "++Str}, 0})
     end.
 
 int_to_int(Str) ->
@@ -107,7 +107,7 @@ to_binary(Str) ->
         {value, Val, _} = erl_eval:exprs(Exprs, erl_eval:new_bindings()),
         Val
     catch
-        _:_ -> throw({error, {0, ?MODULE, {malformed_binary, Str}}, 0})
+        _:_ -> throw({error, {0, ?MODULE, "malformed_binary: "++Str}, 0})
     end.
 
 trim(Str) ->

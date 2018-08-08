@@ -4,8 +4,10 @@
 compile(X) ->
     try redbug_codegen:generate(parse(to_str(X)))
     catch
-        throw:R -> exit({compiler_error, R});
-        exit:R -> exit(R)
+        exit:not_string       -> exit({syntax_error, "bad_input"});
+        exit:{scan_error, R}  -> exit({syntax_error, R});
+        exit:{parse_error, R} -> exit({syntax_error, R});
+        exit:{gen_error, R}   -> exit({syntax_error, R})
     end.
 
 parse(Str) ->
@@ -18,8 +20,9 @@ parse(Str) ->
 scan(Str) ->
     case catch redbug_lexer:string(Str) of
         {ok, Tokens, _} -> Tokens;
+        {error, {_, _, {illegal, Tok}}, _} -> exit({scan_error, "at: "++Tok});
         {error, {_, _, Error}, _} -> exit({scan_error, Error});
-        {'EXIT', R} -> exit({scan_error, bad_input, R})
+        {'EXIT', R} -> exit({scan_error, {bad_input, R}})
     end.
 
 to_str(Atom) when is_atom(Atom) -> atom_to_list(Atom);
