@@ -36,7 +36,7 @@ is_({T}) :
   {token, {'type_test1', TokenLine, to_atom(TokenChars)}}.
 
 is_record :
-  {token, {'type_test2', TokenLine, to_atom(TokenChars)}}.
+  {token, {'type_isrec', TokenLine, to_atom(TokenChars)}}.
 
 ({F0}) :
   {token, {'bif0', TokenLine, to_atom(TokenChars)}}.

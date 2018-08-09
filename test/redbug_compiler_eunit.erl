@@ -4,455 +4,497 @@
 
 -module(redbug_compiler_eunit).
 
--export([go/0]).
+-include_lib("eunit/include/eunit.hrl").
 
--include_lib("kernel/include/file.hrl").
+-record(rec,
+        {f1,
+         f2        :: integer(),
+         f3 = '_',
+         f4 = '_'  :: integer()}).
 
-go() ->
-  [assertEqual(
-      {syntax_error,{bad_type,{float,0.1}}},
+x_test_() ->
+  [?_assertEqual(
+      {syntax_error,"at: ."},
       unit("f:c(0.1)")),
 
-   assertEqual(
-      {syntax_error,{parse_error,"syntax error before: '<'"}},
+   ?_assertEqual(
+      {syntax_error,"at: ."},
       unit("f:c(<0.0.1>)")),
 
-   assertEqual(
-      {syntax_error,{illegal_input,1}},
+   ?_assertEqual(
+      {syntax_error,"bad input"},
       unit(1)),
 
-   assertEqual(
-      {syntax_error,{unbound_var,'Y'}},
+   ?_assertEqual(
+      {syntax_error,"unbound variable: 'Y'"},
       unit("a:b(X,y)when is_atom(Y)")),
 
-   assertEqual(
-      {syntax_error,{parse_error,[{call,1,{atom,1,x},[{atom,1,s}]}]}},
+   ?_assertEqual(
+      {syntax_error,"syntax error before: '('"},
       unit("x(s)")),
 
-   assertEqual(
-      {syntax_error,{parse_error,[{op,1,'-',{atom,1,x},{atom,1,s}}]}},
+   ?_assertEqual(
+      {syntax_error,"syntax error before: '-'"},
       unit("x-s")),
 
-   assertEqual(
-      {syntax_error,{unknown_action,"bla"}},
+   ?_assertEqual(
+      {syntax_error,"illegal action: bla"},
       unit("x:y(z)->bla")),
 
-   assertEqual(
-      {syntax_error,{parse_error,"syntax error before: hen"}},
+   ?_assertEqual(
+      {syntax_error,"syntax error before: hen"},
       unit("x:c(Aw)hen [A,A] == [A]++[A]")),
 
-   assertEqual(
-      {syntax_error,{parse_error,"syntax error before: '.'"}},
+   ?_assertEqual(
+      {syntax_error,"syntax error before: "},
       unit("x:c(Aw)when [")),
 
-   assertEqual(
-      {syntax_error,{bad_binary,{unbound_var,'_'}}},
+   ?_assertEqual(
+      {syntax_error,"malformed_binary: <<1:3,_:5>>"},
       unit("erlang:binary_to_list(<<1:3,_:5>>)")),
 
-   assertEqual(
-      {syntax_error,{illegal_plusplus,{{var,1,'A'},{var,1,'B'}}}},
+   ?_assertEqual(
+      {syntax_error,"syntax error before: '++'"},
       unit("m:f(A++B)")),
 
-   assertEqual(
-      {syntax_error,{scan_error,"m'"}},
+   ?_assertEqual(
+      {syntax_error,"at: '"},
       unit("m'")),
 
-   assertEqual(
-      {syntax_error,{scan_error,"'"}},
+   ?_assertEqual(
+      {syntax_error,"at: '"},
       unit("m:f when '")),
 
-   assertEqual(
-      {syntax_error, x},
+   ?_assertEqual(
+      {syntax_error,"syntax error before: \"X\""},
       unit("a:b(X,Y)when is_record(X,rec) and (Y==0)")),
 
-   assertEqual(
-     {syntax_error, y},
+   ?_assertEqual(
+     {syntax_error,"syntax error before: '#'"},
      unit("a:b([222#22|C])")),
 
-   assertEqual(
-     {syntax_error, y},
+   ?_assertEqual(
+     {syntax_error,"syntax error before: '#'"},
      unit("a:b([1#223|C])")),
 
-   assertEqual(
+   ?_assertEqual(
+     {syntax_error,"no such module: fake"},
+     unit("a:b(2,fake#rec{f1=0,f2=regular})")),
+
+   ?_assertEqual(
+     {syntax_error,"no such record: fake"},
+     unit("c:d(2,redbug_compiler_eunit#fake{f1=0,f2=regular})")),
+
+   ?_assertEqual(
+     {syntax_error,"no such field: f99"},
+     unit("e:f(2,redbug_compiler_eunit#rec{f99=0})")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: '='"},
+     unit("e:f(2,redbug_compiler_eunit#rec{=0})")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: \"W\""},
+     unit("e:f(2,redbug_compiler_eunit#rec{W=0})")),
+
+   ?_assertEqual(
       {{f,c,1},
        [{[<<>>],[],[]}],
        [local]},
       unit("f:c(<<>>)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,'_','_'},
        [{'_',[],[]}],
        [local]},
       unit(erlang)),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,'_','_'},
        [{'_',[{'=/=',{element,1,'$_'},b}],[]}],
        [local]},
       unit("a when element(1,'$_')=/=b")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,'_','_'},
        [{'_',[{'==',{tl,{hd,'$_'}},{{}}}],[]}],
        [local]},
       unit("erlang when tl(hd('$_'))=={}")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,'_'},
        [{'_',[{'=/=',{element,1,'$_'},c}],[]}],
        [local]},
       unit("a:b when element(1,'$_')=/=c")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,'_','_'},
        [{'_',[],[]}],
        [local]},
       unit("a")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,'_','_'},
        [{'_',[],[{message,{process_dump}}]}],
        [local]},
       unit("a->stack")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,'_'},
        [{'_',[],[]}],
        [local]},
       unit("a:b")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,'_'},
        [{'_',[],[{exception_trace}]}],
        [local]},
       unit("a:b->return ")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{'_',[],[]}],
        [local]},
       unit("a:b/2")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{'_',[],[{exception_trace}]}],
        [local]},
       unit("a:b/2->return")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1','$2'],[],[]}],
        [local]},
       unit("a:b(X,Y)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['_','_'],[],[]}],
        [local]},
       unit("a:b(_,_)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1','$1'],[],[]}],
        [local]},
       unit("a:b(X,X)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1',y],[],[]}],
        [local]},
       unit("a:b(X,y)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,foo,0},
        [{[],[{'==',a,b}],[]}],
        [local]},
       unit("a:foo()when a==b")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,foo,'_'},
        [{'_',[{'==',a,b}],[]}],
        [local]},
       unit("a:foo when a==b")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1',1],[],[]}],
        [local]},
       unit("a:b(X,1)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1',"foo"],[],[]}],
        [local]},
       unit("a:b(X,\"foo\")")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,y,2},
        [{[{'$1',{'$2','$1'}},'$1'],[],[]}],
        [local]},
       unit("x:y({A,{B,A}},A)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,y,3},
        [{['$1',['$1',{'$2',['$2','$1']},'$1'],'$2'],[],[]}],
        [local]},
       unit("x:y(A,[A,{B,[B,A]},A],B)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,c,1},
        [{[[string]],[],[]}],
        [local]},
       unit("x:c([string])")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,c,1},
        [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
        [local]},
       unit("x:c(S)when S==x;S==y")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,c,1},
        [{['$1'],[{'or',{'==','$1',x},{'==','$1',y}}],[]}],
        [local]},
       unit("x:c(S)when (S==x)or(S==y)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1','$2'],
-         [{'andalso',{'and',{is_record,rec,'$1'},{'==','$2',0}},{'==','$1',z}}],[]}],
+         [{'andalso',
+           {'and',{is_record,'$1',rec,4},{'==','$2',0}},
+           {'==','$1',z}}],
+         []}],
        [local]},
-      unit("a:b(X,Y)when is_record(rec,X) and (Y==0), (X==z)")),
+      unit("a:b(X,Y)when is_record(redbug_compiler_eunit#rec,X) and (Y==0), (X==z)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1',y],[{'not',{is_atom,'$1'}}],[]}],
        [local]},
       unit("a:b(X,y)when not is_atom(X)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1','$2'],[{'andalso',{'==','$1',1},{'=/=','$2',a}}],[]}],
        [local]},
       unit("a:b(X,Y)when X==1,Y=/=a")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1',y],[{'not',{is_atom,'$1'}}],[{exception_trace}]}],
        [local]},
       unit("a:b(X,y)when not is_atom(X) -> return")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1',y],[{'andalso',{'==',{element,1,'$1'},foo},{'==','$1',z}}],[]}],
        [local]},
       unit("a:b(X,y)when element(1,X)==foo, (X==z)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,2},
        [{['$1','$1'],[],[{exception_trace},{message,{process_dump}}]}],
        [local]},
       unit("a:b(X,X) -> return;stack")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,y,2},
        [{['$1',['$1','$2','$3']],
          [{'andalso',{'==','$1','$2'},{is_atom,'$3'}}],[]}],
        [local]},
       unit("x:y(A,[A,B,C])when A==B,is_atom(C)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,y,1},
        [{[['$1','$2','$3']],
          [{'andalso',{'=/=','$1','$2'},{is_atom,'$3'}}],[]}],
        [local]},
       unit("x:y([A,B,C])when A=/=B,is_atom(C)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,1},
        [{[['$1','$2','$3']],[{'==','$2','$3'}],[]}],
        [local]},
       unit("a:b([A,B,T])when B==T")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,y,1},
        [{[['$1'|{'$2'}]],[{is_atom,'$1'}],[]}],
        [local]},
       unit("x:y([C|{D}])when is_atom(C)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{lists,reverse,1},
        [{[[97,98|'_']],[],[]}],
        [local]},
       unit("lists:reverse(\"ab\"++_)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{lists,reverse,1},
        [{['$1'],[{'==','$1',[]}],[]}],
        [local]},
       unit("lists:reverse(\"\"++A) when A==\"\"")),
 
-   assertEqual(
+   ?_assertEqual(
       {{lists,reverse,1},
        [{["ab"],[],[]}],
        [local]},
       unit("lists:reverse(\"ab\"++\"\")")),
 
-   assertEqual(
+   ?_assertEqual(
       {{lists,reverse,1},
        [{[[97,98|'$1']],[{'<',3,{length,'$1'}}],[]}],
        [local]},
       unit("lists:reverse(\"ab\"++C)when 3<length(C)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,1},
        [{[[97,98|'$1']],[],[]}],
        [local]},
       unit("a:b([$a,$b|C])")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,b,1},
        [{[[46|'$1']],[],[]}],
        [local]},
      unit("a:b([22#22|C])")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,'_','_'},
        [{[a],[],[]}],
        [global]},
       unit("a:_(a)")),
 
-   assertEqual(
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{['_','_'],[],[]}],
+       [global]},
+      unit("a:_/2")),
+
+   ?_assertEqual(
       {{a,'_','_'},
        [{'_',[],[]}],
        [global]},
       unit("a:_")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,'_','_'},
        [{'_',[],[{exception_trace}]}],
        [global]},
       unit("a:_->return")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,'_','_'},
        [{[{'$1'}],[{'==',{hd,'$1'},{{}}}],[]}],
        [global]},
       unit("erlang:_({A}) when hd(A)=={}")),
 
-   assertEqual(
+   ?_assertEqual(
       {{a,'_','_'},
        [{[[]],[],[{exception_trace},{message,{process_dump}}]}],
        [global]},
       unit("a:X([]) -> return,stack")),
 
-   assertEqual(
+   ?_assertEqual(
       {{lists,'_','_'},
        [{[[a]],[],[]}],
        [global]},
       unit("lists:X([a])")),
 
-   assertEqual(
+   ?_assertEqual(
       {{lists,'_','_'},
        [{['$1'],[{is_list,'$1'}],[]}],
        [global]},
       unit("lists:X(A) when is_list(A)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{lists,'_','_'},
        [{'_',[],[]}],
        [global]},
       unit("lists:X")),
 
-   assertEqual(
+   ?_assertEqual(
       {{x,c,1},
        [{['$1'],[{'==',['$1','$1'],['$1','$1']}],[]}],
        [local]},
       unit("x:c(A)when [A,A] == [A]++[A]")),
 
-   assertEqual(
+   ?_assertEqual(
       {{f,m,1},
        [{[<<1,$a,$b,$c>>],[],[]}],
        [local]},
       unit("f:m(<<1,\"abc\">>)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,binary_to_list,1},
        [{['$1'],[{'==','$1',<<"0">>}],[]}],
        [local]},
       unit("erlang:binary_to_list(A)when A==<<48>>")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,binary_to_list,1},
        [{[<<"0">>],[],[]}],
        [local]},
       unit("erlang:binary_to_list(<<48>>)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,binary_to_list,1},
        [{['$1'],[{'==','$1',"abc"}],[]}],
        [local]},
       unit("erlang:binary_to_list(D) when D==\"abc\"")),
 
-   assertEqual(
+   ?_assertEqual(
       {{maps,to_list,1},
        [{['$1'],[{'==','$1',#{a=>b}}],[]}],
        [local]},
       unit("maps:to_list(D) when D==#{a:=b}")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,binary_to_list,1},
        [{[<<"0">>],[],[]}],
        [local]},
       unit("erlang:binary_to_list(<<\"0\">>)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{erlang,binary_to_list,1},
        [{[<<"!">>],[],[]}],
        [local]},
       unit("erlang:binary_to_list(<<1:3,1:5>>)")),
 
-   assertEqual(
+   ?_assertEqual(
       {{maps,to_list,1},
        [{[#{a=>b,c=>d}],[],[]}],
        [local]},
       unit("maps:to_list(#{a=>b,c=>d})")),
 
-   assertEqual(
+   ?_assertEqual(
       {{maps,to_list,1},
        [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
        [local]},
       unit("maps:to_list(#{a=>b,c=>D})when D==e")),
 
-   assertEqual(
+   ?_assertEqual(
      {{maps,to_list,1},
       [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
       [local]},
      unit("maps:to_list(#{a:=b,c:=D})when D==e")),
 
-   assertEqual(
+   ?_assertEqual(
      {{maps,to_list,1},
       [{['$1'],[{'is_map','$1'}],[]}],
       [local]},
      unit("maps:to_list(D)when is_map(D)")),
 
-   assertEqual(
-     {{erlang,element,2},
-      [{[2,{}],[],[]}],
+   ?_assertEqual(
+     {{self,element,2},
+      [{[is_integer,hd],[],[]}],
       [local]},
-     unit("erlang:element(2,file#file{inodes=0})")),
+     unit("self:element(is_integer,hd)")),
 
-   assertEqual(
-     {{erlang,belement,2},
-      [{[2,#file_info{inode=0,type=regular}],[],[]}],
+   ?_assertEqual(
+     {{self,element,4},
+      [{[self,element,size,is_record],[],[]}],
       [local]},
-     unit("erlang:belement(2,file#file_info{inode=0,type=regular})"))].
+     unit("self:element(self,element,size,is_record)")),
 
-assertEqual(Expected, {Input, Output}) ->
-  case Output == Expected of
-    true -> {};
-    false -> {Input, Output, Expected}
-  end.
+   ?_assertEqual(
+     {{e,f,2},
+      [{[2,#rec{f1=0,f2=regular}],[],[]}],
+      [local]},
+     unit("e:f(2,redbug_compiler_eunit#rec{f1=0,f2=regular})"))].
 
 unit(Str) ->
-  {Str, try redbug_compiler:compile(Str) catch exit:R -> R end}.
+  try
+    erlang:trace_pattern({'_','_','_'}, false, []),
+    {MFA, MS, Flags} = redbug_compiler:compile(Str),
+    true = is_integer(erlang:trace_pattern(MFA, MS, Flags)),
+    {MFA, MS, Flags}
+  catch
+    exit:R -> R
+  after
+    erlang:trace_pattern({'_','_','_'}, false, [])
+  end.
