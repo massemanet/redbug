@@ -61,10 +61,10 @@ mk_actions('_', Flags) ->
 mk_actions(As, Flags) ->
     lists:foldr(fun chk_action/2, {[], Flags}, As).
 
-chk_action({atom, _, stack}, {As, Fs})  -> {[{message,{process_dump}}|As], Fs};
+chk_action({atom, _, stack},  {As, Fs}) -> {[{message,{process_dump}}|As], Fs};
 chk_action({atom, _, return}, {As, Fs}) -> {[{exception_trace}|As], Fs};
-chk_action({atom, _, time}, {As, Fs})   -> {As, [call_time|Fs]};
-chk_action({atom, _, count}, {As, Fs})  -> {As, [call_count|Fs]};
+chk_action({atom, _, time},   {As, Fs}) -> {As, [call_time|Fs]};
+chk_action({atom, _, count},  {As, Fs}) -> {As, [call_count|Fs]};
 chk_action({atom, _, Act}, _)           -> die("illegal action", Act).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -72,27 +72,27 @@ chk_action({atom, _, Act}, _)           -> die("illegal action", Act).
 
 %% values
 lift({atom, _, Value}, Ctxt) -> {Value, Ctxt};
-lift({int, _, Value}, Ctxt)  -> {Value, Ctxt};
-lift({bin, _, Value}, Ctxt)  -> {Value, Ctxt};
+lift({int,  _, Value}, Ctxt) -> {Value, Ctxt};
+lift({bin,  _, Value}, Ctxt) -> {Value, Ctxt};
 %% variables
 lift({variable, _, "_"}, Ctxt) -> {'_', Ctxt};
 lift({variable, L, Var}, Ctxt) -> lift_var(Var, L, Ctxt);
 %% composite terms
-lift({tuple, Es}, Ctxt)   -> lift_tuple(Es, Ctxt);
-lift({list, Es}, Ctxt)    -> lift_list(Es, Ctxt);
-lift({map, KVs}, Ctxt)    -> lift_map(KVs, Ctxt);
-lift({field, KV}, Ctxt)   -> lift_field(KV, Ctxt);
+lift({tuple,  Es},  Ctxt) -> lift_tuple(Es, Ctxt);
+lift({list,   Es},  Ctxt) -> lift_list(Es, Ctxt);
+lift({map,    KVs}, Ctxt) -> lift_map(KVs, Ctxt);
+lift({field,  KV},  Ctxt) -> lift_field(KV, Ctxt);
 lift({record, Rec}, Ctxt) -> lift_record(Rec, Ctxt);
 %% operators and functions
-lift({{comparison_op, _, Op}, Args}, Ctxt) -> lift2(Op, Args, Ctxt);
-lift({{arithmetic_op, _, Op}, Args}, Ctxt) -> lift2(Op, Args, Ctxt);
-lift({{boolean_op1, _, Op}, Args}, Ctxt)   -> lift1(Op, Args, Ctxt);
-lift({{boolean_op2, _, Op}, Args}, Ctxt)   -> lift2(Op, Args, Ctxt);
-lift({{type_test1, _, Test}, Args}, Ctxt)  -> lift1(Test, Args, Ctxt);
-lift({{type_isrec, _, Test}, Args}, Ctxt)  -> liftR(Test, Args, Ctxt);
-lift({{bif1, _, Bif}, Args}, Ctxt)         -> lift1(Bif, Args, Ctxt);
-lift({{bif2, _, Bif}, Args}, Ctxt)         -> lift2(Bif, Args, Ctxt);
-lift({{bif3, _, Bif}, Args}, Ctxt)         -> lift3(Bif, Args, Ctxt).
+lift({{comparison_op, _, Op},  Args}, Ctxt) -> lift2(Op,  Args, Ctxt);
+lift({{arithmetic_op, _, Op},  Args}, Ctxt) -> lift2(Op,  Args, Ctxt);
+lift({{boolean_op1,   _, Op},  Args}, Ctxt) -> lift1(Op,  Args, Ctxt);
+lift({{boolean_op2,   _, Op},  Args}, Ctxt) -> lift2(Op,  Args, Ctxt);
+lift({{type_test1,    _, Tst}, Args}, Ctxt) -> lift1(Tst, Args, Ctxt);
+lift({{type_isrec,    _, Tst}, Args}, Ctxt) -> liftR(Tst, Args, Ctxt);
+lift({{bif1,          _, Bif}, Args}, Ctxt) -> lift1(Bif, Args, Ctxt);
+lift({{bif2,          _, Bif}, Args}, Ctxt) -> lift2(Bif, Args, Ctxt);
+lift({{bif3,          _, Bif}, Args}, Ctxt) -> lift3(Bif, Args, Ctxt).
 
 %% different arity functions
 lift1(Op, Args, Ctxt) ->
@@ -139,7 +139,7 @@ lift_list(Es, Ctxt) ->
     lift_list(Es, [], Ctxt).
 
 %% we need to handle improper lists, i.e. when the tail is not a list
-%% such as [a|b]
+%% such as [a|b]. (the 'when not is_list' clause)
 
 lift_list([], O, Ctxt) ->
     {lists:reverse(O), Ctxt};
@@ -201,6 +201,8 @@ get_fields(Rec, Dbgi) ->
         [Fs] -> lists:map(fun get_field/1, Fs)
     end.
 
+%% there are 4 kinds of record field info; typed/untyped and initialized/not
+
 get_field({typed_record_field, RecordField, _}) -> get_field(RecordField);
 get_field({record_field, _, {atom, _, F}}) -> F;
 get_field({record_field, _, {atom, _, F}, _}) -> F.
@@ -218,6 +220,7 @@ index(K, []) -> die("no such field", K);
 index(K, [K|_]) -> 1;
 index(K, [_|Ks]) -> 1+index(K, Ks).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% problem handler
 die(Str, Term) ->
     exit({gen_error, lists:flatten(io_lib:format(Str++": ~p", [Term]))}).
