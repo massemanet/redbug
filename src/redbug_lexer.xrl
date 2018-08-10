@@ -93,7 +93,7 @@ char_to_int([$$, C]) ->
 
 radix_to_int(Str) ->
     case erl_scan:tokens([], Str++". ", 0) of
-        {done, {ok, [{integer, 0, Int}, {dot, 0}], 0}, []} -> Int;
+        {done, {ok, [{integer, _, Int}, {dot, _}], 0}, []} -> Int;
         _ -> throw({error, {0, ?MODULE, "malformed_int: "++Str}, 0})
     end.
 

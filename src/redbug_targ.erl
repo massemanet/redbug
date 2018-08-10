@@ -80,7 +80,9 @@ ftime([_|T]) -> ftime(T).
 do_start(Node,LD) ->
   case Node == nonode@nohost orelse net_adm:ping(Node) == pong of
     true ->
-      spawn_link(Node,fun() -> init(LD) end);
+      Pid = spawn_link(Node,fun init/0),
+      Pid ! LD,
+      Pid;
     false ->
       exit(node_down)
   end.
@@ -93,6 +95,12 @@ do_start(Node,LD) ->
 %%%             {file,File,Size,Count} |
 %%%             {ip,Port,Queue}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-spec init() -> no_return().
+init() ->
+  receive
+    LD -> init(LD)
+  end.
 
 init(LD0) ->
   unset_tps(),

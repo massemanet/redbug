@@ -279,7 +279,17 @@ x_test_() ->
            {'==','$1',z}}],
          []}],
        [local]},
-      unit("a:b(X,Y)when is_record(redbug_compiler_eunit#rec,X) and (Y==0), (X==z)")),
+      unit("a:b(X,Y)when is_record(redbug_compiler_eunit#rec,X) and (Y==0)")),
+
+   ?_assertEqual(
+      {{a,b,2},
+       [{['$1','$2'],
+         [{'andalso',
+           {'and',{is_record,'$1',rec,4},{'==','$2',0}},
+           {'==','$1',z}}],
+         []}],
+       [local]},
+      unit("a:b(X,Y)when X and (Y==0), (X==z)")),
 
    ?_assertEqual(
       {{a,b,2},
