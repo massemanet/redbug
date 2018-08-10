@@ -36,7 +36,7 @@ module -> atomic : class(module, '$1').
 function -> 'variable'   : {function, '_'}.
 function -> atomic       : class(function, '$1').
 
-atomic -> 'atom'       : '$1'.
+atomic -> 'atom'       : e13('$1').
 atomic -> 'bif0'       : class(atom, '$1').
 atomic -> 'bif1'       : class(atom, '$1').
 atomic -> 'bif2'       : class(atom, '$1').
