@@ -502,7 +502,7 @@ chk_trc('receive',{Flags,RTPs})                -> {['receive'|Flags],RTPs};
 chk_trc(RTP,{Flags,RTPs}) when ?is_string(RTP) -> {Flags,[chk_rtp(RTP)|RTPs]};
 chk_trc(X,_)                                   -> throw({bad_trc,X}).
 
-chk_rtp(Str) -> redbug_msc:transform(Str).
+chk_rtp(Str) -> redbug_compiler:compile(Str).
 
 slist(S) when ?is_string(S) -> [S];
 slist(L) when is_list(L) -> lists:usort(L);

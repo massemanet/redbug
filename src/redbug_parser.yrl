@@ -5,7 +5,7 @@ Nonterminals
   atomic
   record map record_fields record_field map_fields map_field
   guards guard guard_value test
-  actions.
+  actions action.
 
 Terminals
   '(' ')' '[' ']' '{' '}'
@@ -31,51 +31,51 @@ mfa -> module ':' function               : {'$1', '$3', '_'}.
 mfa -> module ':' function '/' arity     : {'$1', '$3', '$5'}.
 mfa -> module ':' function '(' args ')'  : {'$1', '$3', '$5'}.
 
-module -> atomic : {module, e3('$1')}.
+module -> atomic : class(module, '$1').
 
 function -> 'variable'   : {function, '_'}.
-function -> atomic       : {function, e3('$1')}.
+function -> atomic       : class(function, '$1').
 
-atomic -> 'atom'       : setelement(1,'$1',atom).
-atomic -> 'bif0'       : setelement(1,'$1',atom).
-atomic -> 'bif1'       : setelement(1,'$1',atom).
-atomic -> 'bif2'       : setelement(1,'$1',atom).
-atomic -> 'type_test1' : setelement(1,'$1',atom).
-atomic -> 'type_isrec' : setelement(1,'$1',atom).
+atomic -> 'atom'       : '$1'.
+atomic -> 'bif0'       : class(atom, '$1').
+atomic -> 'bif1'       : class(atom, '$1').
+atomic -> 'bif2'       : class(atom, '$1').
+atomic -> 'type_test1' : class(atom, '$1').
+atomic -> 'type_isrec' : class(atom, '$1').
 
 args -> terms : '$1'.
 
-arity -> 'int' : '$1'.
+arity -> 'int' : class(arity, '$1').
 
 terms -> '$empty'       : [].
 terms -> term           : ['$1'].
 terms -> terms ',' term : '$1' ++ ['$3'].
 
-term -> 'variable' : '$1'.
-term -> 'bin'      : '$1'.
-term -> 'int'      : '$1'.
+term -> 'variable' : e13('$1').
+term -> 'bin'      : e13('$1').
+term -> 'int'      : e13('$1').
 term -> atomic     : '$1'.
 term -> list       : {list, '$1'}.
 term -> tuple      : {tuple, '$1'}.
 term -> record     : {record, '$1'}.
 term -> map        : {map, '$1'}.
 
-list -> 'string'               : [{int, 0, I} || I <- e3('$1')].
+list -> 'string'               : [{'int', I} || I <- e3('$1')].
 list -> '[' terms ']'          : '$2'.
 list -> '[' terms '|' term ']' : mk_cons('$2', '$4').
-list -> list '++' 'variable'   : mk_cons('$1', '$3').
+list -> list '++' 'variable'   : mk_cons('$1', e13('$3')).
 list -> list '++' list         : mk_cons('$1', '$3').
 
 tuple -> '{' terms '}' : '$2'.
 
-record -> 'atom' '#' 'atom'                       : {'$1', '$3', []}.
-record -> 'atom' '#' 'atom' '{' record_fields '}' : {'$1', '$3', '$5'}.
+record -> atomic '#' atomic                       : {'$1', '$3', []}.
+record -> atomic '#' atomic '{' record_fields '}' : {'$1', '$3', '$5'}.
 
 record_fields -> '$empty'                       : [].
 record_fields -> record_field                   : ['$1'].
 record_fields -> record_fields ',' record_field : '$1' ++ ['$3'].
 
-record_field -> 'atom' '=' term : {field, ['$1', '$3']}.
+record_field -> atomic '=' term : {field, ['$1', '$3']}.
 
 map -> '#{' map_fields '}' : '$2'.
 
@@ -88,34 +88,41 @@ map_field -> term '=>' term : {field, ['$1', '$3']}.
 
 guards -> '(' guards ')'             : '$2'.
 guards -> guard                      : '$1'.
-guards -> guards ',' guard           : {{boolean_op2, 0, 'andalso'}, ['$1', '$3']}.
-guards -> guards ';' guard           : {{boolean_op2, 0, 'orelse'}, ['$1', '$3']}.
-guards -> 'boolean_op1' guard        : {'$1', ['$2']}.
-guards -> guards 'boolean_op2' guard : {'$2', ['$1', '$3']}.
+guards -> guards ',' guard           : {{boolean_op2, 'andalso'}, ['$1', '$3']}.
+guards -> guards ';' guard           : {{boolean_op2, 'orelse'}, ['$1', '$3']}.
+guards -> 'boolean_op1' guard        : {e13('$1'), ['$2']}.
+guards -> guards 'boolean_op2' guard : {e13('$2'), ['$1', '$3']}.
 
 guard -> '(' guard ')'           : '$2'.
 guard -> test                    : '$1'.
-guard -> 'boolean_op1' test      : {'$1', ['$2']}.
-guard -> test 'boolean_op2' test : {'$2', ['$1', '$3']}.
+guard -> 'boolean_op1' test      : {e13('$1'), ['$2']}.
+guard -> test 'boolean_op2' test : {e13('$2'), ['$1', '$3']}.
 
 test -> '(' test ')'                               : '$2'.
-test -> 'type_test1' '(' 'variable' ')'            : {'$1', ['$3']}.
-test -> 'type_isrec' '(' record ',' 'variable' ')' : {'$1', [{record, '$3'}, '$5']}.
-test -> guard_value 'comparison_op' guard_value    : {'$2', ['$1', '$3']}.
+test -> 'type_test1' '(' 'variable' ')'            : {e13('$1'), [e13('$3')]}.
+test -> 'type_isrec' '(' record ',' 'variable' ')' : {e13('$1'), [{record, '$3'}, e13('$5')]}.
+test -> guard_value 'comparison_op' guard_value    : {e13('$2'), ['$1', '$3']}.
 
 guard_value -> '(' guard_value ')'                        : '$2'.
 guard_value -> term                                       : '$1'.
-guard_value -> 'bif0' '(' ')'                             : {'$1', []}.
-guard_value -> 'bif1' '(' guard_value ')'                 : {'$1', ['$3']}.
-guard_value -> 'bif2' '(' guard_value ',' guard_value ')' : {'$1', ['$3', '$5']}.
-guard_value -> guard_value 'arithmetic_op' guard_value    : {'$2', ['$1', '$3']}.
+guard_value -> 'bif0' '(' ')'                             : {e13('$1'), []}.
+guard_value -> 'bif1' '(' guard_value ')'                 : {e13('$1'), ['$3']}.
+guard_value -> 'bif2' '(' guard_value ',' guard_value ')' : {e13('$1'), ['$3', '$5']}.
+guard_value -> guard_value 'arithmetic_op' guard_value    : {e13('$2'), ['$1', '$3']}.
 
-actions -> 'atom'             : ['$1'].
-actions -> actions ',' 'atom' : '$1' ++ ['$3'].
-actions -> actions ';' 'atom' : '$1' ++ ['$3'].
+actions -> action             : ['$1'].
+actions -> actions ',' action : '$1' ++ ['$3'].
+actions -> actions ';' action : '$1' ++ ['$3'].
+
+action -> 'atom' : {action, e3('$1')}.
 
 Erlang code.
 
 e3({_, _, E}) -> E.
+
+e13({C, _, E}) -> {C, E}.
+
+class(Class, {_, E}) -> {Class, E};
+class(Class, {_, _, E}) -> {Class, E}.
 
 mk_cons(H, T) -> lists:foldr(fun(E,O) -> [E|O] end, T, H).
