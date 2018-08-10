@@ -98,6 +98,18 @@ x_test_() ->
      unit("e:f(2,redbug_compiler_eunit#rec{W=0})")),
 
    ?_assertEqual(
+     {syntax_error,"syntax error before: ')'"},
+      unit("x:c(S)when (S==x;)(S==y)")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: ')'"},
+      unit("x:c(S)when (S==x;)S==y")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: ')'"},
+      unit("x:c(S)when (S==)x;(S==y)")),
+
+   ?_assertEqual(
       {{f,c,1},
        [{[<<>>],[],[]}],
        [local]},
@@ -234,6 +246,24 @@ x_test_() ->
        [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
        [local]},
       unit("x:c(S)when S==x;S==y")),
+
+   ?_assertEqual(
+      {{x,c,1},
+       [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
+       [local]},
+      unit("x:c(S)when (S==x;S==y)")),
+
+   ?_assertEqual(
+      {{x,c,1},
+       [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
+       [local]},
+      unit("x:c(S)when (S)==x;S==y")),
+
+   ?_assertEqual(
+      {{x,c,1},
+       [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
+       [local]},
+      unit("x:c(S)when ((S==x);(S==y))")),
 
    ?_assertEqual(
       {{x,c,1},

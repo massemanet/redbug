@@ -16,10 +16,13 @@ Terminals
 
 Rootsymbol rtp.
 
-Left  4 arithmetic_op.
-Left  3 comparison_op.
-Right 2 boolean_op1.
-Left  1 boolean_op2.
+Nonassoc 100 '('.
+Nonassoc 100 ')'.
+Left      50 arithmetic_op.
+Left      40 comparison_op.
+Right     30 boolean_op1.
+Left      20 boolean_op2.
+Left      10 '++'.
 
 rtp -> mfa                            : {'$1', '_', '_'}.
 rtp -> mfa '->' actions               : {'$1', '_', '$3'}.
