@@ -1,25 +1,46 @@
 -module(redbug_compiler).
--export([compile/1, parse/1, scan/1]).
+-export([compile/1, generate/1, parse/1, scan/1]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API
 
+-type tp() :: {m_f_a(), [{args(), [guard()], actions()}], flags()}.
+-type m_f_a() :: {atom(), atom() | '_', integer() | '_'}.
+-type args() :: list() | '_'.
+-type guard() :: tuple() | '_'.
+-type actions() :: list().
+-type flags() :: list().
+-type ast() :: tuple().
+-type tokens() :: [{atom(), integer(), term()} | {atom(), integer()}].
+
+-spec compile(atom() | binary() | list()) -> tp().
 compile(X) ->
     try generate(parse(to_str(X)))
     catch
-        exit:not_string       -> exit({syntax_error, "bad input"});
+        exit:{scan_error, R}  -> exit({syntax_error, R});
+        exit:{parse_error, R} -> exit({syntax_error, R});
+        exit:{gen_error, R}   -> exit({syntax_error, R});
+        exit:not_string -> exit({syntax_error, "bad input"})
+    end.
+
+-spec generate(ast()) -> tp().
+generate(AST) ->
+    try gen(AST)
+    catch
         exit:{scan_error, R}  -> exit({syntax_error, R});
         exit:{parse_error, R} -> exit({syntax_error, R});
         exit:{gen_error, R}   -> exit({syntax_error, R})
     end.
 
+-spec parse(string()) -> ast().
 parse(Str) ->
     case catch redbug_parser:parse(scan(Str)) of
-        {ok, Tree}             -> Tree;
+        {ok, AST}              -> AST;
         {error, {_, _, Error}} -> exit({parse_error, lists:flatten(Error)});
         {'EXIT', Error}        -> exit(Error)
     end.
 
+-spec scan(string()) -> tokens().
 scan(Str) ->
     case catch redbug_lexer:string(Str) of
         {ok, Tokens, _}                    -> Tokens;
@@ -36,7 +57,7 @@ to_str(_) -> exit(not_string).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% the code generator
 
-generate({MFA, G, As}) ->
+gen({MFA, G, As}) ->
     {M, F, Arity, Args, Ctxt, Flags0} = mk_mfa(MFA),
     {Guard, Flags1} = mk_guard(G, Ctxt, Flags0),
     {Actions, Flags2} = mk_actions(As, Flags1),

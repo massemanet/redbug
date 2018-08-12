@@ -24,7 +24,8 @@
             port_no,
             procs,
             queue_size,
-            rtps,
+            ast,
+            trace_patterns,
             style,
             time,
             timer,
@@ -35,19 +36,19 @@
 
 %%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start(Node,Cnf) ->
-  assert_loaded(Node),
+  assert_loaded(Node,[?MODULE,redbug_compiler]),
   do_start(Node,mk_ld(Cnf)).
 
-mk_ld([{time,Time},{flags,Flags},{rtps,RTPs},{procs,Procs},{where,Where}]) ->
+mk_ld([{time,Time},{flags,Flags},{ast,AST},{procs,Procs},{where,Where}]) ->
   #ld{host_pid=self(),
       time=Time,
       flags=Flags,
-      rtps=RTPs,
+      ast=AST,
       procs=Procs,
       where=Where}.
 
-assert_loaded(Node) ->
-  lists:foreach(fun(M) -> ass_loaded(Node,M) end,[?MODULE]).
+assert_loaded(Node,Modules) ->
+  lists:foreach(fun(M) -> ass_loaded(Node,M) end,Modules).
 
 ass_loaded(nonode@nohost,Mod) -> {module,Mod}=c:l(Mod);
 ass_loaded(Node,Mod) ->
@@ -104,18 +105,25 @@ init() ->
 
 init(LD0) ->
   unset_tps(),
-  LD = consumer(fix_procs(expand_underscores(maybe_load_rtps(LD0)))),
+  LD = consumer(generate_trace_patterns(LD0)),
   NoProcs = start_trace(LD),
   untrace(family(redbug)++family(?MODULE),LD#ld.flags),
-  NoFuncs = set_tps(LD#ld.rtps),
+  NoFuncs = set_tps(LD#ld.trace_patterns),
   assert_trace_targets(NoProcs,NoFuncs,LD#ld.flags,LD#ld.procs),
   LD#ld.host_pid ! {?MODULE,{starting,NoProcs,NoFuncs}},
   exit({?MODULE,(LD#ld.loop_fun)()}).
 
-maybe_load_rtps(LD) ->
-  LD#ld{rtps=lists:foldl(fun maybe_load_rtp/2,[],LD#ld.rtps)}.
+generate_trace_patterns(LD0) ->
+  LD = LD0#ld{trace_patterns=[redbug_compiler:generate(A) || A <- LD0#ld.ast]},
+  fix_procs(expand_underscores(maybe_load_mods(LD))).
 
-maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
+-define(fold_field(Rec,Field,Fun,Acc0),
+        Rec#ld{Field=lists:foldl(Fun,Acc0,Rec#ld.Field)}).
+
+maybe_load_mods(LD) ->
+  ?fold_field(LD,trace_patterns,fun maybe_load_mod/2,[]).
+
+maybe_load_mod({{M,_,_},_,_} = Rtp,O) ->
   try
     case code:which(M) of
       preloaded         -> ok;
@@ -128,22 +136,25 @@ maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
   end.
 
 expand_underscores(LD) ->
-  LD#ld{rtps=lists:foldl(fun expand_underscore/2,[],LD#ld.rtps)}.
+  ?fold_field(LD,trace_patterns,fun expand_underscore/2,[]).
 
 expand_underscore({{'_','_','_'},MatchSpec,Flags},O) ->
-  ExpandModule =
-    fun(M,A) -> expand_underscore({{M,'_','_'},MatchSpec,Flags},A) end,
-  lists:foldl(ExpandModule,O,modules());
+  lists:foldl(mk_expand_module(MatchSpec,Flags),O,modules());
 expand_underscore({{M,'_','_'},MatchSpec,Flags},O) ->
-  ExpandFunction =
-    fun({F,Ari},A) -> expand_underscore({{M,F,Ari},MatchSpec,Flags},A) end,
-  lists:foldl(ExpandFunction,O,functions(M));
+  lists:foldl(mk_expand_function(M,MatchSpec, Flags),O,functions(M));
 expand_underscore({{M,F,'_'},MatchSpec,Flags},O) ->
-  ExpandArity =
-    fun(Ari,A) -> expand_underscore({{M,F,Ari},MatchSpec,Flags},A) end,
-  lists:foldl(ExpandArity,O,arities(M,F));
+  lists:foldl(mk_expand_arity(M,F,MatchSpec,Flags),O,arities(M,F));
 expand_underscore(ExpandedRtp,O) ->
   [ExpandedRtp|O].
+
+mk_expand_module(MatchSpec, Flags) ->
+  fun(M,A) -> expand_underscore({{M,'_','_'},MatchSpec,Flags},A) end.
+
+mk_expand_function(M,MatchSpec, Flags) ->
+  fun({F,Ari},A) -> expand_underscore({{M,F,Ari},MatchSpec,Flags},A) end.
+
+mk_expand_arity(M,F,MatchSpec,Flags) ->
+  fun(Ari,A) -> expand_underscore({{M,F,Ari},MatchSpec,Flags},A) end.
 
 modules() ->
   [M || {M,F} <- code:all_loaded(),is_list(F),filelib:is_regular(F)].
@@ -170,12 +181,27 @@ globals(M) ->
   M:module_info(exports).
 
 fix_procs(LD) ->
-  LD#ld{procs=lists:foldl(fun mk_prc/2,[],LD#ld.procs)}.
+  ?fold_field(LD,procs,fun mk_prc/2,[]).
+
+mk_prc(Ps,A) when Ps == running; Ps == all; Ps == new ->
+  [Ps|A];
+mk_prc(Reg,A) when is_atom(Reg) ->
+  case whereis(Reg) of
+    Pid when is_pid(Pid) -> mk_prc(Pid,A);
+    undefined -> A
+  end;
+mk_prc({pid,P1,P2},A) when is_integer(P1),is_integer(P2) ->
+  mk_prc(c:pid(0,P1,P2),A);
+mk_prc(Pid,A) when is_pid(Pid) ->
+  case is_process_alive(Pid) of
+    true -> [Pid|A];
+    false-> A
+  end.
 
 family(Daddy) ->
   try D = whereis(Daddy),
       [D|element(2,process_info(D,links))]
-  catch _:_->[]
+  catch _:_-> []
   end.
 
 untrace(Pids,Flags) ->
@@ -207,21 +233,6 @@ is_new_pidspec(Ps) ->
 
 is_message_trace(Flags) ->
   (lists:member(send,Flags) orelse lists:member('receive',Flags)).
-
-mk_prc(Ps,A) when Ps == running; Ps == all; Ps == new ->
-  [Ps|A];
-mk_prc(Reg,A) when is_atom(Reg) ->
-  case whereis(Reg) of
-    Pid when is_pid(Pid) -> mk_prc(Pid,A);
-    undefined -> A
-  end;
-mk_prc({pid,P1,P2},A) when is_integer(P1),is_integer(P2) ->
-  mk_prc(c:pid(0,P1,P2),A);
-mk_prc(Pid,A) when is_pid(Pid) ->
-  case is_process_alive(Pid) of
-    true -> [Pid|A];
-    false-> A
-  end.
 
 start_trace(LD) ->
   Flags = [{tracer,LD#ld.tracer}|LD#ld.flags],
@@ -390,7 +401,7 @@ flush(LD,Buffer) ->
     true  -> LD#ld.dest ! lists:map(fun msg/1,lists:reverse(Buffer));
     false -> ok
   end,
-  lists:foreach(mk_flush_time_count(LD#ld.dest),LD#ld.rtps).
+  lists:foreach(mk_flush_time_count(LD#ld.dest),LD#ld.trace_patterns).
 
 mk_flush_time_count(Where) ->
   fun({MFA,_MatchSpec,Flags}) ->

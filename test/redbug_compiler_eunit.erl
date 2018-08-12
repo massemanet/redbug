@@ -291,6 +291,14 @@ x_test_() ->
 
    ?_assertEqual(
       {{a,b,2},
+       [{['$1','$2'],
+         [{'and',{{'$1','$2'}},{'==','$2','$2'}}],
+         []}],
+       [local]},
+      unit("a:b(X,Y)when {X,Y} and Y==Y")),
+
+   ?_assertEqual(
+      {{a,b,2},
        [{['$1',y],[{'not',{is_atom,'$1'}}],[]}],
        [local]},
       unit("a:b(X,y)when not is_atom(X)")),
