@@ -97,21 +97,22 @@ guards -> 'boolean_op1' guard        : {e13('$1'), ['$2']}.
 guards -> guards 'boolean_op2' guard : {e13('$2'), ['$1', '$3']}.
 
 guard -> '(' guard ')'           : '$2'.
-guard -> test                    : '$1'.
 guard -> 'boolean_op1' test      : {e13('$1'), ['$2']}.
 guard -> test 'boolean_op2' test : {e13('$2'), ['$1', '$3']}.
+guard -> test                    : '$1'.
 
 test -> '(' test ')'                               : '$2'.
 test -> 'type_test1' '(' 'variable' ')'            : {e13('$1'), [e13('$3')]}.
 test -> 'type_isrec' '(' record ',' 'variable' ')' : {e13('$1'), [{record, '$3'}, e13('$5')]}.
 test -> guard_value 'comparison_op' guard_value    : {e13('$2'), ['$1', '$3']}.
+test -> guard_value                                : '$1'.
 
 guard_value -> '(' guard_value ')'                        : '$2'.
-guard_value -> term                                       : '$1'.
 guard_value -> 'bif0' '(' ')'                             : {e13('$1'), []}.
 guard_value -> 'bif1' '(' guard_value ')'                 : {e13('$1'), ['$3']}.
 guard_value -> 'bif2' '(' guard_value ',' guard_value ')' : {e13('$1'), ['$3', '$5']}.
 guard_value -> guard_value 'arithmetic_op' guard_value    : {e13('$2'), ['$1', '$3']}.
+guard_value -> term                                       : '$1'.
 
 actions -> action             : ['$1'].
 actions -> actions ',' action : '$1' ++ ['$3'].
