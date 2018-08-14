@@ -103,9 +103,16 @@ init() ->
     LD -> init(LD)
   end.
 
+-define(pipe(A,B,C,D,E,F), F(E(D(C(B(A)))))).
+
 init(LD0) ->
   unset_tps(),
-  LD = consumer(generate_trace_patterns(LD0)),
+  LD = ?pipe(LD0,
+             codegen,
+             maybe_load_mods,
+             expand_underscores,
+             fix_procs,
+             consumer),
   NoProcs = start_trace(LD),
   untrace(family(redbug)++family(?MODULE),LD#ld.flags),
   NoFuncs = set_tps(LD#ld.trace_patterns),
@@ -113,9 +120,8 @@ init(LD0) ->
   LD#ld.host_pid ! {?MODULE,{starting,NoProcs,NoFuncs}},
   exit({?MODULE,(LD#ld.loop_fun)()}).
 
-generate_trace_patterns(LD0) ->
-  LD = LD0#ld{trace_patterns=[redbug_compiler:generate(A) || A <- LD0#ld.ast]},
-  fix_procs(expand_underscores(maybe_load_mods(LD))).
+codegen(LD) ->
+  LD#ld{trace_patterns=lists:map(fun redbug_compiler:generate/1, LD#ld.ast)}.
 
 -define(fold_field(Rec,Field,Fun,Acc0),
         Rec#ld{Field=lists:foldl(Fun,Acc0,Rec#ld.Field)}).
