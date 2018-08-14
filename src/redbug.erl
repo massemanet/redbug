@@ -438,7 +438,7 @@ mfaf(I) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% pack data into a proplist for target consumption
 %%% Proplist = list({Tag,Val})
-%%% Tag = time | flags | ast | procs | where
+%%% Tag = time | flags | asts | procs | where
 %%% Where = {buffer,Pid,Count,MaxQueue,MaxSize} |
 %%%         {stream,Pid,Count,MaxQueue,MaxSize} |
 %%%         {discard,Pid,Count,MaxQueue,MaxSize} |
@@ -447,10 +447,10 @@ mfaf(I) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 pack(Cnf) ->
   Flags0 = [call,timestamp],
-  {Flags,AST} = lists:foldl(fun chk_trc/2,{Flags0,[]},slist(Cnf#cnf.trc)),
+  {Flags,ASTs} = lists:foldl(fun chk_trc/2,{Flags0,[]},slist(Cnf#cnf.trc)),
   [{time,chk_time(Cnf#cnf.time)},
    {flags,maybe_arity(Cnf,maybe_trace_child(Cnf,Flags))},
-   {ast,AST},
+   {asts,ASTs},
    {procs,[chk_proc(P) || P <- mk_list(Cnf#cnf.procs)]},
    {where,where(Cnf)}].
 
@@ -499,7 +499,7 @@ chk_msgs(X) -> throw({bad_msgs,X}).
 
 chk_trc('send',{Flags,Trc})                   -> {['send'|Flags],Trc};
 chk_trc('receive',{Flags,Trc})                -> {['receive'|Flags],Trc};
-chk_trc(Trc,{Flags,AST}) when ?is_string(Trc) -> {Flags,[mk_ast(Trc)|AST]};
+chk_trc(Trc,{Flags,ASTs}) when ?is_string(Trc) -> {Flags,[mk_ast(Trc)|ASTs]};
 chk_trc(X,_)                                  -> throw({bad_trc,X}).
 
 mk_ast(Str) -> redbug_compiler:parse(Str).
