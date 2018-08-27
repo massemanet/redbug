@@ -41,11 +41,11 @@ start(Node, Cnf) ->
 
 mk_ld(Props) ->
   #ld{host_pid = self(),
-      time     = proplists:get_value(time, Props),
-      flags    = proplists:get_value(flags, Props),
-      asts     = proplists:get_value(asts, Props),
-      procs    = proplists:get_value(procs, Props),
-      where    = proplists:get_value(where, Props)}.
+      time  = proplists:get_value(time, Props),
+      flags = proplists:get_value(flags, Props),
+      asts  = proplists:get_value(asts, Props),
+      procs = proplists:get_value(procs, Props),
+      where = proplists:get_value(where, Props)}.
 
 assert_loaded(Node, Modules) ->
   lists:foreach(fun(M) -> ass_loaded(Node, M) end, Modules).

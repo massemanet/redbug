@@ -16,6 +16,15 @@
                  [process_info(self(),current_function),
                   {line,?LINE}|T])).
 
+%% erlang:get_stacktrace/0 was made obsolete in OTP21
+-ifdef(OTP_RELEASE). %% this implies 21 or higher
+-define(EXCEPTION(Class, Reason, StackToken), Class:Reason:StackToken).
+-define(GET_STACK(StackToken), StackToken).
+-else.
+-define(EXCEPTION(Class, Reason, _), Class:Reason).
+-define(GET_STACK(_), erlang:get_stacktrace()).
+-endif.
+
 %% the redbug server data structure
 %% most can be set in the input proplist
 -record(cnf,{
@@ -205,29 +214,20 @@ findex(Tag,[])       -> throw({no_such_option,Tag});
 findex(Tag,[Tag|_])  -> 1;
 findex(Tag,[_|Tags]) -> findex(Tag,Tags)+1.
 
-%% erlang:get_stacktrace/0 was made obsolete in OTP21
--ifdef('OTP_RELEASE'). %% implies >= OTP21
--define(try_with_stack(F),
-        try {ok,F} catch __C:__R:__S -> {__C,__R,__S} end).
--else.
--define(try_with_stack(F),
-        try {ok,F} catch __C:__R -> {__C,__R,erlang:get_stacktrace()} end).
--endif.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the main redbug process
 %%% a state machine. init, starting, running, stopping, wait_for_trc.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 init(Cnf) ->
   process_flag(trap_exit,true),
-  case ?try_with_stack(starting(do_start(Cnf))) of
-    {ok,Result} ->
-      Result;
-    {throw,R,_} ->
+  try
+    starting(do_start(Cnf))
+  catch
+    throw:R ->
       exit({argument_error,R});
-    {C,R,S} when Cnf#cnf.debug andalso not Cnf#cnf.blocking ->
-      ?log([{C,R},{stack,S}]);
-    {_,R,_} ->
+    ?EXCEPTION(C,R,S) when Cnf#cnf.debug andalso not Cnf#cnf.blocking ->
+      ?log([{C,R},{stack,?GET_STACK(S)}]);
+    _:R ->
       exit(R)
   end.
 
@@ -239,16 +239,16 @@ starting(Cnf) ->
 
 running(Cnf = #cnf{trc_pid=TrcPid,print_pid=PrintPid}) ->
   receive
-    stop                       -> TrcPid ! stop,
-                                  wait_for_trc(Cnf),
-                                  PrintPid ! stop,
-                                  done(Cnf,wait_for_printer(Cnf));
-    {'EXIT',TrcPid,_}          -> PrintPid ! stop,
-                                  done(Cnf,wait_for_printer(Cnf));
-    {'EXIT',PrintPid,R}        -> TrcPid ! stop,
-                                  wait_for_trc(Cnf),
-                                  done(Cnf,R);
-    X                          -> ?log([{unknown_message,X}])
+    stop                -> TrcPid ! stop,
+                           wait_for_trc(Cnf),
+                           PrintPid ! stop,
+                           done(Cnf,wait_for_printer(Cnf));
+    {'EXIT',TrcPid,R}   -> PrintPid ! stop,
+                           done(Cnf,{R,wait_for_printer(Cnf)});
+    {'EXIT',PrintPid,R} -> TrcPid ! stop,
+                           wait_for_trc(Cnf),
+                           done(Cnf,R);
+    X                   -> ?log([{unknown_message,X}])
   end.
 
 wait_for_trc(#cnf{trc_pid=TrcPid}) ->
@@ -512,12 +512,19 @@ slist(X) -> [X].
 %%% the print_loop process
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 print_init(PrintFun) ->
-  print_loop(PrintFun,0).
+  print_loop(PrintFun,0,running).
 
-print_loop(PrintFun,Acc) ->
+print_loop(PrintFun,Acc,State) ->
+  maybe_exit(State,Acc),
   receive
-    Ms = [_|_] -> print_loop(PrintFun,lists:foldl(PrintFun,Acc,Ms));
-    stop -> exit({printer,Acc})
+    Ms = [_|_] -> print_loop(PrintFun,lists:foldl(PrintFun,Acc,Ms),State);
+    stop -> print_loop(PrintFun,Acc,stopping)
+  end.
+
+maybe_exit(State,Acc) ->
+  case State == stopping andalso process_info(self(),message_queue_len) of
+    {_,0} -> exit({printer,Acc});
+    _ -> ok
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
