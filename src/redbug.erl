@@ -231,10 +231,10 @@ init(Cnf) ->
       exit(R)
   end.
 
-starting(Cnf) ->
+starting(Cnf = #cnf{trc_pid=TrcPid}) ->
   receive
-    {redbug_targ,{starting,P,F}} -> running(run(Cnf,P,F));
-    {'EXIT',_,{redbug_targ,R}}   -> throw(R)
+    {{starting,TrcPid,P,F}} -> running(run(Cnf,P,F));
+    {'EXIT',TrcPid,R}   -> throw(R)
   end.
 
 running(Cnf = #cnf{trc_pid=TrcPid,print_pid=PrintPid}) ->
@@ -242,19 +242,19 @@ running(Cnf = #cnf{trc_pid=TrcPid,print_pid=PrintPid}) ->
     stop                -> TrcPid ! stop,
                            wait_for_trc(Cnf),
                            PrintPid ! stop,
-                           done(Cnf,wait_for_printer(Cnf));
+                           done(Cnf,{stopped,wait_for_printer(Cnf)});
     {'EXIT',TrcPid,R}   -> PrintPid ! stop,
                            done(Cnf,{R,wait_for_printer(Cnf)});
     {'EXIT',PrintPid,R} -> TrcPid ! stop,
                            wait_for_trc(Cnf),
-                           done(Cnf,R);
+                           done(Cnf,{printer_crash,R});
     X                   -> ?log([{unknown_message,X}])
   end.
 
 wait_for_trc(#cnf{trc_pid=TrcPid}) ->
   receive
-    {'EXIT',TrcPid,{redbug_targ,stop}} -> ok;
-    {'EXIT',TrcPid,R}                  -> ?log([{trace_control_died,R}])
+    {'EXIT',TrcPid,stop} -> ok;
+    {'EXIT',TrcPid,R}    -> ?log([{trace_control_died,R}])
   end.
 
 wait_for_printer(#cnf{print_pid=PrintPid}) ->
@@ -265,8 +265,8 @@ wait_for_printer(#cnf{print_pid=PrintPid}) ->
 done(#cnf{blocking=false},{Reason,Answer}) ->
   io:fwrite("~s",[done_string(Reason)]),
   io:fwrite("redbug done, ~p - ~p~n",[Reason,Answer]);
-done(#cnf{blocking=true},Reason) ->
-  exit(Reason).
+done(#cnf{blocking=true},Answer) ->
+  exit(Answer).
 
 done_string(Reason) ->
   case is_tuple(Reason) andalso element(1,Reason) of
@@ -523,7 +523,7 @@ print_loop(PrintFun,Acc,State) ->
 
 maybe_exit(State,Acc) ->
   case State == stopping andalso process_info(self(),message_queue_len) of
-    {_,0} -> exit({printer,Acc});
+    {_,0} -> exit(Acc);
     _ -> ok
   end.
 

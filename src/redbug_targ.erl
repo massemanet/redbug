@@ -117,8 +117,8 @@ init(LD0) ->
   untrace(family(redbug)++family(?MODULE), LD#ld.flags),
   NoFuncs = set_tps(LD#ld.trace_patterns),
   assert_trace_targets(NoProcs, NoFuncs, LD#ld.flags, LD#ld.procs),
-  LD#ld.host_pid ! {?MODULE, {starting, NoProcs, NoFuncs}},
-  exit({?MODULE, (LD#ld.loop_fun)()}).
+  LD#ld.host_pid ! {{starting, self(), NoProcs, NoFuncs}},
+  exit((LD#ld.loop_fun)()).
 
 codegen(LD) ->
   LD#ld{trace_patterns = lists:map(fun redbug_compiler:generate/1, LD#ld.asts)}.
@@ -227,11 +227,11 @@ set_tp({MFA, MatchSpec, Flags}, A) ->
 assert_trace_targets(NoProcs, NoFuncs, Flags, Ps) ->
   case 0 < NoProcs orelse is_new_pidspec(Ps) of
     true -> ok;
-    false-> exit({?MODULE, no_matching_processes})
+    false-> exit(no_matching_processes)
   end,
   case 0 < NoFuncs orelse is_message_trace(Flags) of
     true -> ok;
-    false-> exit({?MODULE, no_matching_functions})
+    false-> exit(no_matching_functions)
   end.
 
 is_new_pidspec(Ps) ->
@@ -327,8 +327,8 @@ buffering(#ld{buffering = Buff}) ->
   end.
 
 loop_lp(LD, Buff, Count) ->
-  maybe_exit(msg_queue, LD),
-  maybe_exit(msg_count, {LD, Buff, Count}),
+  maybe_exit_queue(LD),
+  maybe_exit_count(LD, Buff, Count),
   receive
     {trace_ts, Pid, Tag, A, TS} ->
       Buf = msg(Buff, LD, {Tag, Pid, TS, A}),
@@ -350,55 +350,43 @@ stop_trace_lp(LD, Buff) ->
   unset_tps().
 
 msg(Buff, LD, Item) ->
-  maybe_exit(msg_size, {LD, Item}),
+  maybe_exit_size(LD, Item),
   buff(Buff, LD, Item).
 
 buff(discard, _, _)   -> discard;
 buff(no, LD, Item)    -> send_one(LD, Item), no;
 buff(Buff, _LD, Item) -> [Item|Buff].
 
-maybe_exit(msg_count, {LD, Buff, 0}) ->
-  flush(LD, Buff),
-  exit(msg_count);
-maybe_exit(msg_queue, #ld{maxqueue = MQ}) ->
-  maybe_exit_queue(MQ);
-maybe_exit(msg_size, {#ld{maxsize = MS}, {call, _, _, Call}}) ->
-  case Call of
-    {MFA, B} when is_binary(B) -> maybe_exit_call(MS, MFA, B);
-    MFA -> maybe_exit_call(MS, MFA, <<>>)
-  end;
-maybe_exit(_, _) -> ok.
+maybe_exit_count(LD, Buff, Count) ->
+  case 0 < Count of
+    true -> ok;
+    false->
+      flush(LD, Buff),
+      exit(msg_count)
+  end.
 
-%% check the message queue length
-maybe_exit_queue(MaxQlen) ->
+%% check queue length
+maybe_exit_queue(#ld{maxqueue = MaxQlen}) ->
   case process_info(self(), message_queue_len) of
     {_, Qlen} when Qlen > MaxQlen -> exit({msg_queue, Qlen});
     _ -> ok
   end.
 
-%% can we handle the call trace msg, or is it too big?
-maybe_exit_call(MS, {_M, _F, A}, B) ->
-  maybe_exit_stack(MS, B),
-  maybe_exit_args(MS, A).
-
-%% check the stack binary
-maybe_exit_stack(MS, B) ->
-  case MS < (Sz = size(B)) of
-    true -> exit({stack_size, Sz});
-    false-> ok
-  end.
-
-%% recurse through the args
+%% check size
+%% recurse through the term
 %% exit if there is a long list or a large binary
-maybe_exit_args(MS, T) when is_tuple(T) ->
-  maybe_exit_args(MS, tuple_to_list(T));
-maybe_exit_args(MS, L) when length(L) < MS ->
-  lists:foreach(fun(E) -> maybe_exit_args(MS, E)end, L);
-maybe_exit_args(MS, L) when MS =< length(L) ->
+maybe_exit_size(#ld{maxsize = MS}, {_, _, _, Payload}) ->
+  maybe_exit_size_loop(MS, Payload).
+
+maybe_exit_size_loop(MS, T) when is_tuple(T) ->
+  maybe_exit_size_loop(MS, tuple_to_list(T));
+maybe_exit_size_loop(MS, L) when length(L) < MS ->
+  lists:foreach(fun(E) -> maybe_exit_size_loop(MS, E)end, L);
+maybe_exit_size_loop(MS, L) when MS =< length(L) ->
   exit({arg_length, length(L)});
-maybe_exit_args(MS, B) when MS < byte_size(B) ->
-  exit({arg_size, byte_size(B)});
-maybe_exit_args(_, _) ->
+maybe_exit_size_loop(MS, B) when MS < byte_size(B) ->
+  exit({arg_size_loop, byte_size(B)});
+maybe_exit_size_loop(_, _) ->
   ok.
 
 send_one(LD, Msg) -> LD#ld.dest ! [msg(Msg)].

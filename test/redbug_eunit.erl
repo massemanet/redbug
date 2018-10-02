@@ -116,10 +116,10 @@ t_6_test() ->
   maybe_delete(Filename).
 
 t_7_test() ->
-  {_,Msgs} = redbug:start("erlang",[blocking,{time,999},arity,debug]),
-  ?assertEqual([{{erlang,monitor,2},<<>>},
-                {{erlang,demonitor,1},<<>>}],
-               [MFA || {_,MFA,_,_} <- Msgs]).
+  {timeout,Msgs} = redbug:start("erlang",[blocking,{time,999},arity,debug]),
+  ?assertEqual([{erlang,monitor,2},
+                {erlang,demonitor,1}],
+               [MFA || {call,{MFA,_},_,_} <- Msgs]).
 
 t_8_test() ->
   {_,_} = redbug:start("lists:sort->return",[{file,"foo"},{time,999},debug]),
