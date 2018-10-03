@@ -235,22 +235,26 @@ get_binding(Var, Ctxt, Def) ->
 %% we get the record info (i.e. the list of field names) from the beam file.
 
 get_rec_fields(Mod, Rec) ->
-    get_fields(Rec, get_dbgi(get_filename(Mod))).
+    get_fields(Rec, get_ast(Mod)).
 
-get_filename(Mod) ->
-    case code:which(Mod) of
-        non_existing -> die("no such module", Mod);
-        Filename -> Filename
-    end.
-
-get_dbgi(Filename) ->
+get_ast(Mod) ->
     try
-        {ok, {_, [{_, DbgiB}]}} = beam_lib:chunks(Filename, ["Dbgi"]),
-        {debug_info_v1, _, {Dbgi, _}} = binary_to_term(DbgiB),
-        Dbgi
+        {ok, _, Chunks} = beam_lib:all_chunks(code:which(Mod)),
+        first_of(Chunks)
     catch
-        _:_ -> die("no debug info", Filename)
+        _:{_, {_, _, {file_error, _, enoent}}} -> die("no such module", Mod);
+        _:_ -> die("no debug info", Mod)
     end.
+
+%% beam file format switched from Abst to Dbgi ~20.
+first_of([{"Dbgi", Dbgi}|_]) ->
+    {debug_info_v1, _, {AST, _}} = binary_to_term(Dbgi),
+    AST;
+first_of([{"Abst", Abst}|_]) ->
+    {raw_abstract_v1, AST} = binary_to_term(Abst),
+    AST;
+first_of([_|T]) ->
+    first_of(T).
 
 get_fields(Rec, Dbgi) ->
     case [Fs || {attribute,_,record,{R, Fs}} <- Dbgi, R == Rec] of
