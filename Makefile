@@ -16,7 +16,7 @@ clean:
 test: compile xref eunit
 
 eunit: all
-	ERL_FLAGS="-sname eunit" $(REBAR) eunit
+	DEBUG=1 ERL_FLAGS="-sname eunit" $(REBAR) as default eunit
 	@$(REBAR) cover
 
 xref: all
