@@ -20,7 +20,7 @@ compile(X) ->
         exit:{scan_error, R}  -> exit({syntax_error, R});
         exit:{parse_error, R} -> exit({syntax_error, R});
         exit:{gen_error, R}   -> exit({syntax_error, R});
-        exit:not_string -> exit({syntax_error, "bad input"})
+        exit:not_string       -> exit({syntax_error, "bad input"})
     end.
 
 -spec generate(ast()) -> tp().
