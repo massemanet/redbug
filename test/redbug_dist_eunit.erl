@@ -4,18 +4,46 @@
 -include_lib("eunit/include/eunit.hrl").
 
 x_test_() ->
-    [?_assertEqual([],setup())].
+    [?_assertMatch(
+        {noconnection,
+         [{call,{{erlang,nodes,[]},<<>>},_,_}|_]},
+        runner(mk_tracer("erlang:nodes/0", 3000),
+               mk_action(100, 100, erlang, nodes, []))),
+     ?_assertMatch(
+        {timeout,
+         [{call,{{erlang,nodes,[]},<<>>},_,_}|_]},
+        runner(mk_tracer("erlang:nodes/0", 300),
+               mk_action(100, 100, erlang, nodes, [])))].
 
-setup() ->
-    {ok, Host} = inet:gethostname(),
-    {ok, Slave} = slave:start_link(Host, bla),
-    Pid = spawn(
-            fun() -> Res = redbug:start("erlang:nodes/0",[{target,Slave},blocking,{time,300}]),
-                     receive P -> P ! Res end
-            end),
-    timer:sleep(100),
-    [_] = rpc:call(Slave,erlang,nodes,[]),
-    timer:sleep(100),
-    ok = slave:stop(Slave),
-    Pid ! self(),
-    receive X -> X after 1000 -> timeout end.
+mk_tracer(RTP, Timeout) ->
+    fun(Slave) ->
+        Opts = [{target, Slave}, blocking, {time, Timeout}],
+        Res = redbug:start(RTP, Opts),
+        receive {pid, P} -> P ! {res, Res} end
+    end.
+
+mk_action(PreTO, PostTO, M, F, A) ->
+    fun(Slave) ->
+        timer:sleep(PreTO),
+        rpc:call(Slave, M, F, A),
+        timer:sleep(PostTO)
+    end.
+
+runner(Tracer, Action) ->
+    Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+    {ok, Slave} = ct_slave:start(bla, Opts),
+    rpc:call(Slave, erlang, apply, [mk_interpreted_fun(str())]),
+    {Pid, _} = spawn_monitor(fun() -> Tracer(Slave) end),
+    Action(Slave),
+    {ok, Slave} = ct_slave:stop(Slave),
+    Pid ! {pid, self()},
+    receive {res, X} -> X after 1000 -> timeout end.
+
+str() ->
+    "fun()->[code:del_path(P)||P<-code:get_path(),string:str(P,\"redbug\")=/=0] end. ".
+
+mk_interpreted_fun(Str) ->
+    {ok, Ts, _} = erl_scan:string(Str),
+    {ok, [AST]} = erl_parse:parse_exprs(Ts),
+    {value, Fun, []} = erl_eval:expr(AST, []),
+    Fun.
