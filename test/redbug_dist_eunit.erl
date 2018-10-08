@@ -31,19 +31,15 @@ mk_action(PreTO, PostTO, M, F, A) ->
 
 runner(Tracer, Action) ->
     Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
-    {ok, Slave} = ct_slave:start(bla, Opts),
-    rpc:call(Slave, erlang, apply, [mk_interpreted_fun(str())]),
+    {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
     {Pid, _} = spawn_monitor(fun() -> Tracer(Slave) end),
     Action(Slave),
     {ok, Slave} = ct_slave:stop(Slave),
     Pid ! {pid, self()},
     receive {res, X} -> X after 1000 -> timeout end.
 
-str() ->
-    "fun()->[code:del_path(P)||P<-code:get_path(),string:str(P,\"redbug\")=/=0] end. ".
-
-mk_interpreted_fun(Str) ->
-    {ok, Ts, _} = erl_scan:string(Str),
-    {ok, [AST]} = erl_parse:parse_exprs(Ts),
-    {value, Fun, []} = erl_eval:expr(AST, []),
-    Fun.
+%% mk_interpreted_fun(Str) ->
+%%     {ok, Ts, _} = erl_scan:string(Str),
+%%     {ok, [AST]} = erl_parse:parse_exprs(Ts),
+%%     {value, Fun, []} = erl_eval:expr(AST, []),
+%%     Fun.
