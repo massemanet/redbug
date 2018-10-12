@@ -178,7 +178,7 @@ locals(M) ->
       case beam_lib:chunks(F, [locals]) of
         {ok, {M, [{locals, Locals}]}} ->
           Locals;
-        {error, beam_lib, {missing_chunk, _, _}} ->
+        {error, beam_lib, _} ->
           []
       end
   end.
