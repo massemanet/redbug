@@ -10,29 +10,29 @@
 
 -export([start/2]).
 -export([init/1]).
-
+-export([get_rec_fields/2]).
 
 -record(ld, {buffering,
-            count,
-            dest,
-            file,
-            flags,
-            host_pid,
-            loop_fun,
-            maxqueue,
-            maxsize,
-            port_no,
-            procs,
-            queue_size,
-            asts,
-            trace_patterns,
-            style,
-            time,
-            timer,
-            tracer,
-            where,
-            wrap_count,
-            wrap_size}).
+             count,
+             dest,
+             file,
+             flags,
+             host_pid,
+             loop_fun,
+             maxqueue,
+             maxsize,
+             port_no,
+             procs,
+             queue_size,
+             asts,
+             trace_patterns,
+             style,
+             time,
+             timer,
+             tracer,
+             where,
+             wrap_count,
+             wrap_size}).
 
 %%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start(Node, Cnf) ->
@@ -206,7 +206,7 @@ mk_prc(Pid, A) when is_pid(Pid) ->
 
 family(Daddy) ->
   try D = whereis(Daddy),
-      [D|element(2, process_info(D, links))]
+        [D|element(2, process_info(D, links))]
   catch _:_-> []
   end.
 
@@ -222,7 +222,7 @@ set_tps(TPs) ->
   lists:foldl(fun set_tp/2, 0, TPs).
 
 set_tp({MFA, MatchSpec, Flags}, A) ->
-   A+erlang:trace_pattern(MFA, MatchSpec, Flags).
+  A+erlang:trace_pattern(MFA, MatchSpec, Flags).
 
 assert_trace_targets(NoProcs, NoFuncs, Flags, Ps) ->
   case 0 < NoProcs orelse is_new_pidspec(Ps) of
@@ -400,10 +400,10 @@ flush(LD, Buffer) ->
 
 mk_flush_time_count(Where) ->
   fun({MFA, _MatchSpec, Flags}) ->
-    case [time_count(MFA, Flag) || Flag <- Flags, is_counter(Flag)] of
-      [] -> ok;
-      Msgs -> Where ! Msgs
-    end
+      case [time_count(MFA, Flag) || Flag <- Flags, is_counter(Flag)] of
+        [] -> ok;
+        Msgs -> Where ! Msgs
+      end
   end.
 
 is_counter(Flag) ->
@@ -428,11 +428,11 @@ msg({'call', Pid, TS, MFA}) ->
 pi(P) when is_pid(P) ->
   try process_info(P, registered_name) of
       [] ->
-        case process_info(P, initial_call) of
-          {_, {proc_lib, init_p, 5}} -> {P, proc_lib:translate_initial_call(P)};
-          {_, MFA}                   -> {P, MFA};
-          undefined                  -> {P, dead}
-        end;
+      case process_info(P, initial_call) of
+        {_, {proc_lib, init_p, 5}} -> {P, proc_lib:translate_initial_call(P)};
+        {_, MFA}                   -> {P, MFA};
+        undefined                  -> {P, dead}
+      end;
       {_, Nam}  -> {P, Nam};
       undefined -> {P, dead}
   catch
@@ -452,6 +452,51 @@ pi({R, Node}) when is_atom(R), is_atom(Node) ->
 ts(Nw) ->
   {_, {H, M, S}} = calendar:now_to_local_time(Nw),
   {H, M, S, element(3, Nw)}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% records. records are identified by the {module name, record name} tuple.
+%% we get the record info (i.e. the list of field names) from the beam file.
+
+get_rec_fields(Mod) ->
+  get_recs_fields(get_ast(Mod)).
+
+get_rec_fields(Mod, Rec) ->
+  case lists:keyfind(Rec, 1, get_rec_fields(Mod)) of
+    false -> die("no such record", Rec);
+    {Rec, Fs} -> Fs
+  end.
+
+
+get_ast(Mod) ->
+  try
+    {ok, _, Chunks} = beam_lib:all_chunks(code:which(Mod)),
+    find_ast(Chunks)
+  catch
+    _:{_, {_, _, {file_error, _, enoent}}} -> die("no such module", Mod);
+    _:_ -> die("no debug info", Mod)
+  end.
+
+%% beam file format switched from Abst to Dbgi ~20.
+find_ast([{"Dbgi", Dbgi}|_]) ->
+  {debug_info_v1, _, {AST, _}} = binary_to_term(Dbgi),
+  AST;
+find_ast([{"Abst", Abst}|_]) ->
+  {raw_abstract_v1, AST} = binary_to_term(Abst),
+  AST;
+find_ast([_|T]) ->
+  find_ast(T).
+
+get_recs_fields(AST) ->
+  [{R, lists:map(fun get_field/1, F)} || {attribute, _, record, {R, F}} <- AST].
+
+%% there are 4 kinds of record field info; typed/untyped and initialized/not
+
+get_field({typed_record_field, RecordField, _}) -> get_field(RecordField);
+get_field({record_field, _, {atom, _, F}}) -> F;
+get_field({record_field, _, {atom, _, F}, _}) -> F.
+
+die(Str, Term) ->
+  exit({gen_error, lists:flatten(io_lib:format(Str++": ~p", [Term]))}).
 
 -ifdef(USE_NOW).
 ts() -> erlang:now().

@@ -172,7 +172,7 @@ liftR(is_record, Args, Ctxt) ->
 %% coposite types; records, maps, lists, tuples
 
 lift_record({{atom, Mod}, {atom, Rec}, KVs}, Ctxt) ->
-    Fields = get_rec_fields(Mod, Rec),
+    Fields = redbug_targ:get_rec_fields(Mod, Rec),
     {KVls, Binds} = lift_list(KVs, Ctxt),
     {mk_rec(Rec, KVls, Fields), Binds}.
 
@@ -229,44 +229,6 @@ mk_binding(Var, Ctxt) ->
 
 get_binding(Var, Ctxt, Def) ->
     proplists:get_value(Var, Ctxt#ctxt.bindings, Def).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% records. records are identified by the {module name, record name} tuple.
-%% we get the record info (i.e. the list of field names) from the beam file.
-
-get_rec_fields(Mod, Rec) ->
-    get_fields(Rec, get_ast(Mod)).
-
-get_ast(Mod) ->
-    try
-        {ok, _, Chunks} = beam_lib:all_chunks(code:which(Mod)),
-        first_of(Chunks)
-    catch
-        _:{_, {_, _, {file_error, _, enoent}}} -> die("no such module", Mod);
-        _:_ -> die("no debug info", Mod)
-    end.
-
-%% beam file format switched from Abst to Dbgi ~20.
-first_of([{"Dbgi", Dbgi}|_]) ->
-    {debug_info_v1, _, {AST, _}} = binary_to_term(Dbgi),
-    AST;
-first_of([{"Abst", Abst}|_]) ->
-    {raw_abstract_v1, AST} = binary_to_term(Abst),
-    AST;
-first_of([_|T]) ->
-    first_of(T).
-
-get_fields(Rec, Dbgi) ->
-    case [Fs || {attribute,_,record,{R, Fs}} <- Dbgi, R == Rec] of
-        [] -> die("no such record", Rec);
-        [Fs] -> lists:map(fun get_field/1, Fs)
-    end.
-
-%% there are 4 kinds of record field info; typed/untyped and initialized/not
-
-get_field({typed_record_field, RecordField, _}) -> get_field(RecordField);
-get_field({record_field, _, {atom, _, F}}) -> F;
-get_field({record_field, _, {atom, _, F}, _}) -> F.
 
 mk_rec(Rec, KVs, Fields) ->
     Empty = setelement(1, erlang:make_tuple(length(Fields)+1, '_'), Rec),
