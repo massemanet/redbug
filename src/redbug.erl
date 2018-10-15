@@ -44,6 +44,7 @@
          discard      = false,       % discard messages (when counting)
          %% print-related
          buffered     = false,       % output buffering
+         records      = [],          % list of module names to get records from
          print_calls  = true,        % print calls
          print_file   = "",          % file to print to (standard_io)
          print_msec   = false,       % print milliseconds in timestamps?
@@ -106,6 +107,7 @@ help() ->
     , "blocking     (false)       block start/2, return a list of messages"
     , "arity        (false)       print arity instead of arg list"
     , "trace_child  (false)       children gets traced (set_on_spawn)"
+    , "records      ([])          list of module names to get records from"
     , "buffered     (false)       buffer messages till end of trace"
     , "discard      (false)       discard messages (when counting)"
     , "max_queue    (5000)        fail if internal queue gets this long"
@@ -328,13 +330,27 @@ maybe_update_count(M, N) ->
     _    -> N
   end.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% the default print fun for blocking mode (i.e. return a term).
+%% the printer proc will execute this (or a user-provided fun) for
+%% each message from the target.
+%% we throw away call_time, call_count, and meta messages.
+
 mk_blocker() ->
-  fun({_, {_, false}, _, _}, A)      -> A;
-     ({call_time, {_, []}, _, _}, A) -> A;
-     ({call_count, {_, 0}, _, _}, A) -> A;
-     (X, 0)                      -> [X];
-     (X, A)                      -> [X|A]
+  fun({call_time, {_, false}, _, _}, A)  -> A;
+     ({call_time, {_, []}, _, _}, A)     -> A;
+     ({call_count, {_, false}, _, _}, A) -> A;
+     ({call_count, {_, 0}, _, _}, A)     -> A;
+     ({meta, {recs, Recs}, _, _}, A)     -> put_recs(Recs), A;
+     ({meta, stop, _, _}, A)             -> lists:reverse(A);
+     (X, 0)                              -> [expand(X)];
+     (X, A)                              -> [expand(X)|A]
   end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% the default print fun in non-blocking mode (i.e. to the shell).
+%% the printer proc will execute this (or a user-provided fun) for
+%% each message from the target.
 
 mk_outer(#cnf{file=[_|_]}) ->
   fun(_) -> ok end;
@@ -343,9 +359,13 @@ mk_outer(#cnf{print_depth=Depth, print_msec=MS, print_return=Ret} = Cnf) ->
   fun({Tag, Data, PI, TS}) ->
       MTS = fix_ts(MS, TS),
       case {Tag, Data} of
-        {call_time, {_, false}} ->
+        {'meta', {recs, Recs}} ->
+          put_recs(Recs);
+        {'meta', _} ->
           ok;
-        {call_time, {{M, F, A}, PerProcCT}} ->
+        {'call_time', {_, false}} ->
+          ok;
+        {'call_time', {{M, F, A}, PerProcCT}} ->
           PerProc =
             fun({_, Count, Sec, Usec}, {AC, AT}) ->
                 {Count+AC, Sec*1000000+Usec+AT}
@@ -364,8 +384,9 @@ mk_outer(#cnf{print_depth=Depth, print_msec=MS, print_return=Ret} = Cnf) ->
                 true ->
                   OutFun("~n% ~s ~s~n% ~w:~w/~w", [MTS, to_str(PI), M, F, A]);
                 false->
-                  As = string:join([flat("~P", [E, Depth]) || E <- A], ", "),
-                  OutFun("~n% ~s ~s~n% ~w:~w(~s)", [MTS, to_str(PI), M, F, As])
+                  Args = [flat("~P", [expand(A0), Depth]) || A0 <- A],
+                  AL = string:join(Args, ", "),
+                  OutFun("~n% ~s ~s~n% ~w:~w(~s)", [MTS, to_str(PI), M, F, AL])
               end,
               lists:foreach(fun(L) -> OutFun("  ~s", [L]) end, stak(Bin));
             false->
@@ -373,17 +394,17 @@ mk_outer(#cnf{print_depth=Depth, print_msec=MS, print_return=Ret} = Cnf) ->
           end;
         {'retn', {{M, F, A}, Val0}} ->
           Val = case Ret of
-                  true  -> Val0;
+                  true  -> expand(Val0);
                   false -> '...'
                 end,
           OutFun("~n% ~s ~s~n% ~p:~p/~p -> ~P",
                  [MTS, to_str(PI), M, F, A, Val, Depth]);
         {'send', {MSG, ToPI}} ->
           OutFun("~n% ~s ~s~n% ~s <<< ~P",
-                 [MTS, to_str(PI), to_str(ToPI), MSG, Depth]);
+                 [MTS, to_str(PI), to_str(ToPI), expand(MSG), Depth]);
         {'recv', MSG} ->
           OutFun("~n% ~s ~s~n% <<< ~P",
-                 [MTS, to_str(PI), MSG, Depth])
+                 [MTS, to_str(PI), expand(MSG), Depth])
       end
   end.
 
@@ -391,6 +412,30 @@ to_str({Pid, Reg}) ->
   flat("~w(~p)", [Pid, Reg]);
 to_str(RegisteredName) ->
   flat("~p", [RegisteredName]).
+
+expand(Term) ->
+  case get_keys() of
+    [] -> Term;
+    _ -> trav(Term, fun recordify/2, [])
+  end.
+
+recordify(T, A) when is_tuple(T) ->
+  case get_rec_fields(T) of
+    [] -> {T, A};
+    {Rec, Fields} -> {{Rec, lists:zip(Fields, tl(tuple_to_list(T)))}, A}
+  end;
+recordify(T, A) ->
+  {T, A}.
+
+trav(Term, Fun, Acc) ->
+  {T, A} = Fun(Term, Acc),
+  F = fun(E) -> trav(E, Fun, A) end,
+  case T of
+    _ when is_list(T) -> lists:map(F, T);
+    _ when is_map(T) -> maps:from_list(lists:map(F, maps:to_list(T)));
+    _ when is_tuple(T)-> list_to_tuple(lists:map(F, tuple_to_list(T)));
+    _ -> T
+  end.
 
 mk_out(#cnf{print_re=RE, print_file=File}) ->
   FD = get_fd(File),
@@ -446,6 +491,18 @@ mfaf(I) ->
   [_, C|_] = string:tokens(I, "()+"),
   C.
 
+put_recs(Recs) ->
+  [put({Name, length(Fields)}, Fields) || {Name, Fields} <- Recs].
+
+get_rec_fields(X) when not is_tuple(X) ->
+  [];
+get_rec_fields(Tuple) ->
+  Rec = element(1, Tuple),
+  case get({Rec, size(Tuple)-1}) of
+    undefined -> [];
+    Fields -> {Rec, Fields}
+  end.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% pack data into a proplist for target consumption
 %%% Proplist = list({Tag, Val})
@@ -463,6 +520,7 @@ pack(Cnf) ->
    {flags, maybe_arity(Cnf, maybe_trace_child(Cnf, Flags))},
    {asts, ASTs},
    {procs, [chk_proc(P) || P <- mk_list(Cnf#cnf.procs)]},
+   {records, chk_records(Cnf#cnf.records)},
    {where, where(Cnf)}].
 
 mk_list([]) -> throw(no_procs);
@@ -503,6 +561,11 @@ chk_proc(Atom) when is_atom(Atom) -> Atom;
 chk_proc({pid, I1, I2}) when is_integer(I1), is_integer(I2) -> {pid, I1, I2};
 chk_proc(X) -> throw({bad_proc, X}).
 
+chk_records([]) -> [];
+chk_records(Mod) when is_atom(Mod) -> [Mod];
+chk_records([Mod|Mods]) when is_atom(Mod) -> chk_records(Mods);
+chk_records(What) -> throw({bad_module_name, What}).
+
 chk_msgs(Msgs) when is_integer(Msgs) -> Msgs;
 chk_msgs(X) -> throw({bad_msgs, X}).
 
@@ -526,15 +589,15 @@ print_init(PrintFun) ->
   print_loop(PrintFun, 0, running).
 
 print_loop(PrintFun, Acc, State) ->
-  maybe_exit(State, Acc),
+  maybe_exit(State, PrintFun, Acc),
   receive
     Ms = [_|_] -> print_loop(PrintFun, lists:foldl(PrintFun, Acc, Ms), State);
     stop -> print_loop(PrintFun, Acc, stopping)
   end.
 
-maybe_exit(State, Acc) ->
+maybe_exit(State, PrintFun, Acc) ->
   case State == stopping andalso process_info(self(), message_queue_len) of
-    {_, 0} -> exit(Acc);
+    {_, 0} -> exit(PrintFun({meta, stop, dummy, dummy}, Acc));
     _ -> ok
   end.
 

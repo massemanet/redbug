@@ -30,32 +30,37 @@
              time,
              timer,
              tracer,
+             records,
              where,
              wrap_count,
              wrap_size}).
 
 %%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% unless the target has up to date versions of redbug code, we send it over
+%% and load it. Then we start the rarget process.
+
 start(Node, Cnf) ->
   assert_loaded(Node, [?MODULE, redbug_compiler]),
   do_start(Node, mk_ld(Cnf)).
 
 mk_ld(Props) ->
   #ld{host_pid = self(),
-      time  = proplists:get_value(time, Props),
-      flags = proplists:get_value(flags, Props),
-      asts  = proplists:get_value(asts, Props),
-      procs = proplists:get_value(procs, Props),
-      where = proplists:get_value(where, Props)}.
+      time     = proplists:get_value(time, Props),
+      flags    = proplists:get_value(flags, Props),
+      asts     = proplists:get_value(asts, Props),
+      procs    = proplists:get_value(procs, Props),
+      records  = proplists:get_value(records, Props),
+      where    = proplists:get_value(where, Props)}.
 
 assert_loaded(Node, Modules) ->
-  lists:foreach(fun(M) -> ass_loaded(Node, M) end, Modules).
+  lists:foreach(fun(M) -> assert_load(Node, M) end, Modules).
 
-ass_loaded(nonode@nohost, Mod) -> {module, Mod} = c:l(Mod);
-ass_loaded(Node, Mod) ->
+assert_load(nonode@nohost, Mod) -> {module, Mod} = c:l(Mod);
+assert_load(Node, Mod) ->
   case rpc:call(Node, Mod, module_info, [compile]) of
     {badrpc, {'EXIT', {undef, _}}} ->              %no code
       netload(Node, Mod),
-      ass_loaded(Node, Mod);
+      assert_load(Node, Mod);
     {badrpc, _} ->
       ok;
     CompInfo when is_list(CompInfo) ->
@@ -64,7 +69,7 @@ ass_loaded(Node, Mod) ->
           ok;
         {TargT, HostT} when TargT < HostT -> %old code on target
           netload(Node, Mod),
-          ass_loaded(Node, Mod);
+          assert_load(Node, Mod);
         _ ->
           ok
       end
@@ -113,6 +118,7 @@ init(LD0) ->
              expand_underscores,
              fix_procs,
              consumer),
+  [send_meta({recs, get_rec_fields(Mod)}) || Mod <- LD#ld.records],
   NoProcs = start_trace(LD),
   untrace(family(redbug)++family(?MODULE), LD#ld.flags),
   NoFuncs = set_tps(LD#ld.trace_patterns),
@@ -222,7 +228,8 @@ set_tps(TPs) ->
   lists:foldl(fun set_tp/2, 0, TPs).
 
 set_tp({MFA, MatchSpec, Flags}, A) ->
-  A+erlang:trace_pattern(MFA, MatchSpec, Flags).
+  Count = erlang:trace_pattern(MFA, MatchSpec, Flags),
+  A+Count.
 
 assert_trace_targets(NoProcs, NoFuncs, Flags, Ps) ->
   case 0 < NoProcs orelse is_new_pidspec(Ps) of
@@ -250,6 +257,9 @@ stop_trace(LD) ->
 unset_tps() ->
   erlang:trace_pattern({'_', '_', '_'}, false, [local, call_count, call_time]),
   erlang:trace_pattern({'_', '_', '_'}, false, [global]).
+
+send_meta(Msg) ->
+  self() ! {meta, Msg}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 consumer(LD = #ld{where = {Buffering, Pid, Cnt, MaxQueue, MaxSize}}) ->
@@ -336,6 +346,8 @@ loop_lp(LD, Buff, Count) ->
     {trace_ts, Pid, Tag, A, B, TS} ->
       Buf = msg(Buff, LD, {Tag, Pid, TS, {A, B}}),
       loop_lp(LD, Buf, Count-1);
+    {meta, Meta} ->
+      loop_lp(LD, buff(Buff, LD, {meta, Meta}), Count);
     {timeout, _, _} ->
       stop_trace_lp(LD, Buff),
       timeout;
@@ -412,6 +424,8 @@ is_counter(Flag) ->
 time_count(MFA, Flag) ->
   {Flag, {MFA, element(2, erlang:trace_info(MFA, Flag))}, [], ts(ts())}.
 
+msg({'meta', Meta}) ->
+  {'meta', Meta, undefined, ts(ts())};
 msg({'send', Pid, TS, {Msg, To}}) ->
   {'send', {Msg, pi(To)}, pi(Pid), ts(TS)};
 msg({'receive', Pid, TS, Msg}) ->
@@ -427,27 +441,31 @@ msg({'call', Pid, TS, MFA}) ->
 
 pi(P) when is_pid(P) ->
   try process_info(P, registered_name) of
-      [] ->
-      case process_info(P, initial_call) of
-        {_, {proc_lib, init_p, 5}} -> {P, proc_lib:translate_initial_call(P)};
-        {_, MFA}                   -> {P, MFA};
-        undefined                  -> {P, dead}
-      end;
-      {_, Nam}  -> {P, Nam};
+      []        -> {P, mk_unreg_name(P)};
+      {_, Name} -> {P, Name};
       undefined -> {P, dead}
-  catch
-    error:badarg -> {P, node(P)}
+  catch error:badarg -> {P, node(P)}
   end;
 pi(P) when is_port(P) ->
-  {name, N} = erlang:port_info(P, name),
-  [Hd|_] = string:tokens(N, " "),
-  {P, lists:reverse(hd(string:tokens(lists:reverse(Hd), "/")))};
+  try
+    {name, N} = erlang:port_info(P, name),
+    [Hd|_] = string:tokens(N, " "),
+    {P, lists:reverse(hd(string:tokens(lists:reverse(Hd), "/")))}
+  catch _:_ -> {P, dead}
+  end;
 pi(R) when is_atom(R) ->
   R;
 pi({R, Node}) when is_atom(R), Node =:= node() ->
   R;
 pi({R, Node}) when is_atom(R), is_atom(Node) ->
   {R, Node}.
+
+mk_unreg_name(P) ->
+  case process_info(P, initial_call) of
+    {_, {proc_lib, init_p, 5}} -> proc_lib:translate_initial_call(P);
+    {_, MFA}                   -> MFA;
+    undefined                  -> dead
+  end.
 
 ts(Nw) ->
   {_, {H, M, S}} = calendar:now_to_local_time(Nw),
@@ -457,15 +475,14 @@ ts(Nw) ->
 %% records. records are identified by the {module name, record name} tuple.
 %% we get the record info (i.e. the list of field names) from the beam file.
 
-get_rec_fields(Mod) ->
-  get_recs_fields(get_ast(Mod)).
-
 get_rec_fields(Mod, Rec) ->
   case lists:keyfind(Rec, 1, get_rec_fields(Mod)) of
     false -> die("no such record", Rec);
     {Rec, Fs} -> Fs
   end.
 
+get_rec_fields(Mod) ->
+  get_recs_fields(get_ast(Mod)).
 
 get_ast(Mod) ->
   try

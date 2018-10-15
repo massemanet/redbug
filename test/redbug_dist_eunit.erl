@@ -6,26 +6,55 @@
 x_test_() ->
     [?_assertMatch(
         {noconnection,
-         [{call,{{erlang,nodes,[]},<<>>},_,_}|_]},
-        runner(mk_tracer("erlang:nodes/0", 3000),
-               mk_action(100, 100, erlang, nodes, []))),
+         [{call, {{erlang, nodes, []}, <<>>}, _, _}|_]},
+        runner(
+          mk_tracer("erlang:nodes/0", [{time, 3000}]),
+          mk_action(100, 100, "erlang:nodes()"))),
+
      ?_assertMatch(
         {timeout,
-         [{call,{{erlang,nodes,[]},<<>>},_,_}|_]},
-        runner(mk_tracer("erlang:nodes/0", 300),
-               mk_action(100, 100, erlang, nodes, [])))].
+         [{call, {{erlang, nodes, []}, <<>>}, _, _}|_]},
+        runner(
+          mk_tracer("erlang:nodes/0", [{time, 300}]),
+          mk_action(100, 100, "erlang:nodes()"))),
 
-mk_tracer(RTP, Timeout) ->
+     ?_assertMatch(
+        "",
+        runner(
+          mk_tracer(
+            ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",
+             "file:read_file_info->return"],
+            [{time, 300}, {records, file}]),
+          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)"))),
+
+     ?_assertMatch(
+        "",
+        runner(
+          mk_tracer(
+            ["erlang:setelement(_, {_, file#file_info{type=regular}}, _)",
+             "file:read_file_info->return"],
+            [{time, 300}, {records, file}]),
+          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)"))),
+
+     ?_assertMatch(
+        "",
+        runner(
+          mk_tracer(
+            ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",
+             "file:read_file_info->return"],
+            [{time, 300}]),
+          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)")))].
+
+mk_tracer(RTP, Opts) ->
     fun(Slave) ->
-        Opts = [{target, Slave}, blocking, {time, Timeout}],
-        Res = redbug:start(RTP, Opts),
+        Res = redbug:start(RTP, [{target, Slave}, blocking]++Opts),
         receive {pid, P} -> P ! {res, Res} end
     end.
 
-mk_action(PreTO, PostTO, M, F, A) ->
+mk_action(PreTO, PostTO, Str) ->
     fun(Slave) ->
         timer:sleep(PreTO),
-        rpc:call(Slave, M, F, A),
+        rpc:call(Slave, erl_eval, eval_str, [Str++". "]),
         timer:sleep(PostTO)
     end.
 

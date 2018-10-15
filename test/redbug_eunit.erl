@@ -147,6 +147,7 @@ t_9_test() ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% trace file utilities
+
 maybe_show(Filename) ->
   [io:fwrite("~p~n",[read_file(Filename)]) || in_shell()].
 
