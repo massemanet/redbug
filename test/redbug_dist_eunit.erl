@@ -2,6 +2,7 @@
 -module(redbug_dist_eunit).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
 
 x_test_() ->
     [?_assertMatch(
@@ -19,7 +20,10 @@ x_test_() ->
           mk_action(100, 100, "erlang:nodes()"))),
 
      ?_assertMatch(
-        "",
+        {timeout,
+         [{call,{{file,read_file_info,["/"]},<<>>},_,_},
+          {retn,{{file,read_file_info,1},{ok,{file_info,[_|_]}}},_,_},
+          {call,{{erlang,setelement,[1,{ok,{file_info,[_|_]}},bla]},<<>>},_,_}]},
         runner(
           mk_tracer(
             ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",
@@ -28,7 +32,9 @@ x_test_() ->
           mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)"))),
 
      ?_assertMatch(
-        "",
+        {timeout,
+         [{call,{{file,read_file_info,["/"]},<<>>},_,_},
+          {retn,{{file,read_file_info,1},{ok,{file_info,[_|_]}}},_,_}]},
         runner(
           mk_tracer(
             ["erlang:setelement(_, {_, file#file_info{type=regular}}, _)",
@@ -37,7 +43,10 @@ x_test_() ->
           mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)"))),
 
      ?_assertMatch(
-        "",
+        {timeout,
+         [{call,{{file,read_file_info,["/"]},<<>>},_,_},
+          {retn,{{file,read_file_info,1},{ok,#file_info{}}},_,_},
+          {call,{{erlang,setelement,[1,{ok,#file_info{}},bla]},<<>>},_,_}]},
         runner(
           mk_tracer(
             ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",

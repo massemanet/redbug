@@ -597,7 +597,7 @@ print_loop(PrintFun, Acc, State) ->
 
 maybe_exit(State, PrintFun, Acc) ->
   case State == stopping andalso process_info(self(), message_queue_len) of
-    {_, 0} -> exit(PrintFun({meta, stop, dummy, dummy}, Acc));
+    {_, 0} -> exit(PrintFun({meta, stop, dummy, {0, 0, 0, 0}}, Acc));
     _ -> ok
   end.
 

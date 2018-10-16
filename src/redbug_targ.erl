@@ -520,3 +520,25 @@ ts() -> erlang:now().
 -else.
 ts() -> erlang:timestamp().
 -endif.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-include_lib("eunit/include/eunit.hrl").
+
+netload0_test() ->
+    ?assertMatch(ok, assert_load(foo, bla)),
+    ?assertMatch(ok, assert_load(nonode@nohost, redbug)).
+
+netload1_test() ->
+  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+  {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
+  ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
+  {ok, Slave} = ct_slave:stop(Slave).
+
+netload2_test() ->
+  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+  {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
+  Ebin = filename:dirname(code:which(redbug)),
+  Test = re:replace(re:replace(Ebin, "default", "test"), "ebin", "test"),
+  code:add_patha(unicode:characters_to_list(Test)),
+  ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
+  {ok, Slave} = ct_slave:stop(Slave).

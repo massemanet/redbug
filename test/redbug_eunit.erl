@@ -117,8 +117,8 @@ t_6_test() ->
 
 t_7_test() ->
   {timeout,Msgs} = redbug:start("erlang",[blocking,{time,999},arity,debug]),
-  ?assertEqual([{erlang,monitor,2},
-                {erlang,demonitor,1}],
+  ?assertEqual([{erlang,demonitor,1},
+                {erlang,monitor,2}],
                [MFA || {call,{MFA,_},_,_} <- Msgs]).
 
 t_8_test() ->
