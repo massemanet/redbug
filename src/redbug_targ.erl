@@ -526,7 +526,7 @@ ts() -> erlang:timestamp().
 
 netload0_test() ->
     ?assertMatch(ok, assert_load(foo, bla)),
-    ?assertMatch(ok, assert_load(nonode@nohost, redbug)).
+    ?assertMatch({module, redbug}, assert_load(nonode@nohost, redbug)).
 
 netload1_test() ->
   Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],

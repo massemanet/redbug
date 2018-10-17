@@ -531,7 +531,13 @@ x_test_() ->
      {{e,f,2},
       [{[2,#rec{f1=0,f2=regular}],[],[]}],
       [local]},
-     unit("e:f(2,redbug_compiler_eunit#rec{f1=0,f2=regular})"))].
+     unit("e:f(2,redbug_compiler_eunit#rec{f1=0,f2=regular})")),
+
+   ?_assertEqual(
+     {{e,f,1},
+      [{['$1'],[{'==','$1',{self}}],[]}],
+      [local]},
+     unit("e:f(Pid) when Pid==self()"))].
 
 unit(Str) ->
   try
