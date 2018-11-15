@@ -18,7 +18,21 @@
 %%%---------------------------
 %%% API
 
-start() -> spawn(fun() -> try loop(init())catch C:R:S->erlang:display({C,R,S})end end).
+%% workaround for get_stacktrace confusion in OTP 21
+-ifdef(OTP_RELEASE). %% this implies 21 or higher
+-define(EXCEPTION(Class, Reason, StackToken), Class:Reason:StackToken).
+-define(GET_STACK(StackToken), StackToken).
+-else.
+-define(EXCEPTION(Class, Reason, _), Class:Reason).
+-define(GET_STACK(_), erlang:get_stacktrace()).
+-endif.
+
+start() -> spawn(fun blocking_start/0).
+
+blocking_start() ->
+    try loop(init())
+    catch ?EXCEPTION(C, R, S) -> erlang:display({C, R, ?GET_STACK(S)})
+    end.
 
 stop() -> exit(whereis(redbug_dtop), kill).
 
