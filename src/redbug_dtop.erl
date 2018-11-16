@@ -47,9 +47,7 @@ max_procs(MaxProcs) ->  redbug_dtop ! {max_procs, MaxProcs}.
          tick=2000,
          lines=19,
          strategy=strategy(),
-         total_ram=0,
-         constants=[],
-         cores=1,
+         constants,
          cache=[],
          now=erlang:timestamp(),
          procs=6,
@@ -282,69 +280,99 @@ pidinfo_index(message_queue_len) -> #pidinfo.message_queue_len.
 %%   else
 %%     - return an empty list
 %%
-%% returns a list of tagged tuples
 %%
-%% tag                  [unit]    source
-%% node                 [atom()]  erlang:node()
-%% now                  [now()]   erlang:timestamp()
-%% procs                [count]   erlang:system_info(process_count)
-%% context_switches     [count/s] erlang:statistics(context_switches)
-%% gcs                  [count/s] erlang:statistics(garbage_collection)
-%% gc_reclaimed         [byte/s]  erlang:statistics(garbage_collection)
-%% io_in                [byte/s]  erlang:statistics(io)
-%% io_out               [byte/s]  erlang:statistics(io)
-%% reductions           [count/s] erlang:statistics(reductions)
-%% run_queue            [count]   erlang:statistics(run_queue)
-%% total                [byte]    erlang:memory()
-%% processes            [byte]    erlang:memory()
-%% processes_used       [byte]    erlang:memory()
-%% system               [byte]    erlang:memory()
-%% atom                 [byte]    erlang:memory()
-%% atom_used            [byte]    erlang:memory()
-%% binary               [byte]    erlang:memory()
-%% code                 [byte]    erlang:memory()
-%% ets                  [byte]    erlang:memory()
-%% user                 [frac]    /proc/stat
-%% nice                 [frac]    /proc/stat
-%% kernel               [frac]    /proc/stat
-%% idle                 [frac]    /proc/stat
-%% iowait               [frac]    /proc/stat
-%% ctxt                 [frac]    /proc/stat
-%% beam_user,           [frac]    /proc/self/stat
-%% beam_kernel,         [frac]    /proc/self/stat
-%% beam_vsz             [byte]    /proc/self/stat
-%% beam_rss             [pages]   /proc/self/stat
-%% beam_minflt          [count/s] /proc/self/stat
-%% beam_majflt          [count/s] /proc/self/stat
-%% total_ram            [byte]    /proc/meminfo
+-record(sys_info,
+        {procs,                %% [count]   erlang:system_info(process_count)
+         context_switches,     %% [count/s] erlang:statistics(context_switches)
+         gcs,                  %% [count/s] erlang:statistics(garbage_collection)
+         gc_reclaimed,         %% [byte/s]  erlang:statistics(garbage_collection)
+         io_in,                %% [byte/s]  erlang:statistics(io)
+         io_out,               %% [byte/s]  erlang:statistics(io)
+         reductions,           %% [count/s] erlang:statistics(reductions)
+         run_queue,            %% [count]   erlang:statistics(run_queue)
+         total,                %% [byte]    erlang:memory()
+         processes,            %% [byte]    erlang:memory()
+         processes_used,       %% [byte]    erlang:memory()
+         system,               %% [byte]    erlang:memory()
+         atom,                 %% [byte]    erlang:memory()
+         atom_used,            %% [byte]    erlang:memory()
+         binary,               %% [byte]    erlang:memory()
+         code,                 %% [byte]    erlang:memory()
+         ets,                  %% [byte]    erlang:memory()
+         user,                 %% [frac]    /proc/stat
+         nice,                 %% [frac]    /proc/stat
+         kernel,               %% [frac]    /proc/stat
+         idle,                 %% [frac]    /proc/stat
+         iowait,               %% [frac]    /proc/stat
+         ctxt,                 %% [frac]    /proc/stat
+         beam_user,            %% [frac]    /proc/self/stat
+         beam_kernel,          %% [frac]    /proc/self/stat
+         beam_vsz,             %% [byte]    /proc/self/stat
+         beam_rss,             %% [pages]   /proc/self/stat
+         beam_minflt,          %% [count/s] /proc/self/stat
+         beam_majflt,          %% [count/s] /proc/self/stat
+         cores,                %% [count]   /proc/stat
+         total_ram}).          %% [byte]    /proc/meminfo
 
+-record(sys_const, {total_ram, cores}).
+
+-record(sys_os,
+        {user      = 0,
+         nice      = 0,
+         kernel    = 0,
+         idle      = 0,
+         iowait    = 0,
+         beam_user = 0,
+         beam_sys  = 0,
+         vsz       = 0,
+         rss       = 0,
+         minflt    = 0,
+         majflt    = 0
+        }).
 
 get_sys_data(LD) ->
-    LD#ld.constants++stats()++os_info(LD#ld.strategy).
-
-stats() ->
-    Procs                            = erlang:system_info(process_count),
     {Ctxt, 0}                        = erlang:statistics(context_switches),
     {GCs, GCwords, 0}                = erlang:statistics(garbage_collection),
     {{input, IoIn}, {output, IoOut}} = erlang:statistics(io),
     {Reds, _}                        = erlang:statistics(reductions),
-    RunQ                             = erlang:statistics(run_queue),
-
-    [{now, erlang:timestamp()},
-     {procs, Procs},
-     {context_switches, Ctxt},
-     {gcs, GCs},
-     {gc_reclaimed, GCwords*4},
-     {io_in, IoIn},
-     {io_out, IoOut},
-     {reductions, Reds},
-     {run_queue, RunQ} |
-     erlang:memory()].
+    OS                               = os_info(LD),
+    #sys_info
+        {procs            = erlang:system_info(process_count),
+         context_switches = Ctxt,
+         gcs              = GCs,
+         gc_reclaimed     = GCwords,
+         io_in            = IoIn,
+         io_out           = IoOut,
+         reductions       = Reds,
+         run_queue        = erlang:statistics(run_queue),
+         total            = erlang:memory(total),
+         processes        = erlang:memory(processes),
+         processes_used   = erlang:memory(processes_used),
+         system           = erlang:memory(system),
+         atom             = erlang:memory(atom),
+         atom_used        = erlang:memory(atom_used),
+         binary           = erlang:memory(binary),
+         code             = erlang:memory(code),
+         ets              = erlang:memory(ets),
+         user             = OS#sys_os.user,
+         nice             = OS#sys_os.nice,
+         kernel           = OS#sys_os.kernel,
+         idle             = OS#sys_os.idle,
+         iowait           = OS#sys_os.iowait,
+         beam_user        = OS#sys_os.beam_user,
+         beam_kernel      = OS#sys_os.beam_sys,
+         beam_vsz         = OS#sys_os.vsz,
+         beam_rss         = OS#sys_os.rss,
+         beam_minflt      = OS#sys_os.minflt,
+         beam_majflt      = OS#sys_os.majflt,
+         cores            = (LD#ld.constants)#sys_const.cores,
+         total_ram        = (LD#ld.constants)#sys_const.total_ram}.
 
 constants(#ld{strategy={linux, ProcStat, _}}) ->
-    [{total_ram, total_ram()}, {cores, cores(ProcStat)}];
+    #sys_const{total_ram = total_ram(),
+               cores = cores(ProcStat)};
 constants(_) ->
-    [].
+    #sys_const{}.
 
 strategy() ->
     case os:type() of
@@ -355,24 +383,28 @@ strategy() ->
 
 %% OS info
 os_info({linux, ProcStat, ProcSelfStat}) ->
-    proc_stat(ProcStat)++proc_self_stat(ProcSelfStat);
+    proc_stat(ProcStat, proc_self_stat(ProcSelfStat, #sys_os{}));
 os_info({ps, Port, Cmd}) ->
-    do_ps(Port, Cmd);
+    do_ps(Port, Cmd, #sys_os{});
 os_info(_) ->
-    [].
+    #sys_os{}.
 
-proc_stat(FD) ->
+proc_stat(FD, OS) ->
     %%user nice kernel idle iowait irq softirq steal
     {ok, Str} = file:pread(FD, 0, 200),
     [User, Nice, Kernel, Idle, Iowait] =
         case string:tokens(Str, " \n") of
             ["cpu", I1, I2, I3, I4, I5|_] -> [I1, I2, I3, I4, I5];
-            _                        -> [0, 0, 0, 0, 0]
+            _                             -> [0, 0, 0, 0, 0]
         end,
-    lists:zip([user, nice, kernel, idle, iowait],
-              [jiffy_to_sec(J) || J <- [User, Nice, Kernel, Idle, Iowait]]).
+    OS#sys_os{
+      user   = jiffy_to_sec(User),
+      nice   = jiffy_to_sec(Nice),
+      kernel = jiffy_to_sec(Kernel),
+      idle   = jiffy_to_sec(Idle),
+      iowait = jiffy_to_sec(Iowait)}.
 
-proc_self_stat(FD) ->
+proc_self_stat(FD, OS) ->
 %%% pid, comm, state, ppid, pgrp, session, tty_nr, tpgid, flags,
 %%% minflt, cminflt, majflt, cmajflt, utime, stime, cutime, cstime,
 %%% priority, nice, num_threads, itrealvalue, starttime, vsize, rss
@@ -384,11 +416,13 @@ proc_self_stat(FD) ->
             _ ->
                 {0, 0, 0, 0, 0, 0}
         end,
-    lists:zip([beam_user, beam_kernel, beam_vsz, beam_rss, beam_minflt, beam_majflt],
-              [jiffy_to_sec(Utime), jiffy_to_sec(Stime),
-               to_int(Vsz),   %% in bytes
-               to_int(Rss),   %% in pages...
-               to_int(Minflt), to_int(Majflt)]).
+    OS#sys_os{
+      beam_user = jiffy_to_sec(Utime),
+      beam_sys  = jiffy_to_sec(Stime),
+      vsz       = to_int(Vsz),   %% in bytes
+      rss       = to_int(Rss),   %% in pages...
+      minflt    = to_int(Minflt),
+      majflt    = to_int(Majflt)}.
 
 jiffy_to_sec(J) ->
     to_int(J)/100. %should use a better transform jiffies->secs
@@ -425,7 +459,7 @@ init_ps() ->
      open_port({spawn, "/bin/sh"}, [stream]),
      "ps -o pid, utime, time, vsz, rss, majflt, minflt -p "++os:getpid()++"\n"}.
 
-do_ps(Port, Cmd) ->
+do_ps(Port, Cmd, OS) ->
     case port_command(Port, Cmd, []) of
         true ->
             receive
@@ -435,19 +469,20 @@ do_ps(Port, Cmd) ->
                          %%           ["1", "0:00.20", "0:00.30", "2488932", "12600", "-", "-"]]
                          [_, Utime, Time, Vsz, Rss, MajFault, MinFault]] ->
                             UtimeSec = timestr_to_sec(Utime),
-                            TimeSec =  timestr_to_sec(Time),              % system+user time
-                            [{beam_user, UtimeSec},
-                             {beam_kernel, TimeSec-UtimeSec},
-                             {beam_vsz, to_int(Vsz)*1024},                 % to bytes
-                             {beam_rss, to_int(Rss)},                      % in kB pages
-                             {beam_minflt, to_int(MinFault)},
-                             {beam_majflt, to_int(MajFault)}];
+                            TimeSec =  timestr_to_sec(Time),  %system+user time
+                            OS#sys_os
+                                {beam_user = UtimeSec,
+                                 beam_sys = TimeSec-UtimeSec,
+                                 vsz = to_int(Vsz)*1024,        % to bytes
+                                 rss = to_int(Rss),             % in kB pages
+                                 minflt = to_int(MinFault),
+                                 majflt = to_int(MajFault)};
                         _ ->
-                            []
+                            OS
                     end
             end;
         false ->
-            []
+            OS
     end.
 
 %% "8:11.15"
@@ -640,7 +675,7 @@ mnesia_info() ->
 
 %%%_* mnesia stats ============================================================
 
-        -type table_name()  :: dets:tab_name() | ets:tab().
+-type table_name()  :: dets:tab_name() | ets:tab().
 -type table_type()  :: dets | ets | remote_only.
 -type bytes()       :: non_neg_integer().
 -type count()       :: non_neg_integer().
