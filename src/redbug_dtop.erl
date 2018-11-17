@@ -13,7 +13,7 @@
 -export([start/0,
          stop/0,
          sort/1,
-         max_procs/1]).
+         max_prcs/1]).
 
 %%%---------------------------
 %%% API
@@ -38,22 +38,22 @@ stop() -> exit(whereis(redbug_dtop), kill).
 
 sort(Col) -> redbug_dtop ! {sort, Col}.
 
-max_procs(MaxProcs) ->  redbug_dtop ! {max_procs, MaxProcs}.
+max_prcs(MaxPrcs) ->  redbug_dtop ! {max_prcs, MaxPrcs}.
 
 %%%---------------------------
 -record(ld,
-        {fd=standard_io,
-         sort=cpu,
-         tick=2000,
-         lines=19,
-         strategy=strategy(),
+        {fd = standard_io,
+         sort = cpu,
+         tick = 2000,
+         lines = 19,
+         strategy = strategy(),
          constants,
-         cache=[],
-         now=erlang:timestamp(),
-         procs=6,
-         max_procs=3000}).
+         cache = [],
+         now = erlang:timestamp(),
+         prcs = 6,
+         max_prcs = 3000}).
 
--record(pidinfo,
+-record(prcinfo,
         {pid,
          reductions,
          memory,
@@ -80,7 +80,7 @@ loop(LD) ->
     TS = erlang:timestamp(),
     DT = delta_time(TS, LD#ld.now),
     print(LD, differ(DT, LD#ld.cache, Data)),
-    loop(LD#ld{now=TS, cache=Data}).
+    loop(LD#ld{now = TS, cache = Data}).
 
 get_data(LD) ->
     [get_sys_data(LD), get_prc_data(LD), get_net_data(), get_mnesia_data()].
@@ -90,7 +90,7 @@ print(LD, [SysData, PrcData|_]) ->
     print_sys(LD#ld.fd, SysData),
     lwrite(LD#ld.fd, "~n", []),
     print_tags(LD#ld.fd),
-    print_procs(LD, PrcData, SysData).
+    print_prcs(LD, PrcData, SysData).
 
 print_sys(FD, Sys) ->
     lwrite(FD, "~s~n", [sys_str(Sys)]),
@@ -114,14 +114,14 @@ sys_str(Sys) ->
     MEM       = human(lks(total, Sys)),
     CPUbeam   = to_list(100*(lks(beam_user, Sys, 0)+lks(beam_kernel, Sys, 0))),
     CPU       = to_list(100*(lks(user, Sys, 0)+lks(kernel, Sys, 0))),
-    Procs     = human(lks(procs, Sys)),
+    Prcs      = human(lks(prcs, Sys)),
     RunQ      = human(lks(run_queue, Sys)),
 
     SYS = lists:sublist(lists:append(["size: "    , MEM,
                                       "("         , MEMbeam,
                                       "), cpu%: " , CPUbeam,
                                       "("         , CPU,
-                                      "), procs: ", Procs,
+                                      "), procs: ", Prcs,
                                       ", runq: "  , RunQ,
                                       ", ", H, ":", M, ":", S]), 79),
     pad(Node, 79-length(SYS), $ , right)++SYS.
@@ -129,7 +129,7 @@ sys_str(Sys) ->
 pad(Item, Len, Pad, LeftRight) ->
     Str = to_list(Item),
     case length(Str) of
-        L when L=:=Len -> Str;
+        L when L =:= Len -> Str;
         L when L<Len -> pad(Str, L, Len, Pad, LeftRight);
         _ -> lists:sublist(Str, Len)
     end.
@@ -150,9 +150,9 @@ tags() -> ["pid", "name", "current", "msgq", "mem", "cpu"].
 print_tags(FD) ->
     lwrite(FD, format(), tags()).
 
-print_procs(LD, PrcData, SysData) ->
+print_prcs(LD, PrcData, SysData) ->
     Prcs = complete_info(toplist(LD, PrcData), SysData),
-    lists:foreach(fun(P) -> print_proc(LD, P) end, pad_lines(LD, Prcs)).
+    lists:foreach(fun(Prc) -> print_prc(LD, Prc) end, pad_lines(LD, Prcs)).
 
 pad_lines(#ld{lines = Lines}, Prcs) ->
     case Lines < length(Prcs) of
@@ -160,23 +160,23 @@ pad_lines(#ld{lines = Lines}, Prcs) ->
         false-> Prcs++lists:duplicate(Lines-length(Prcs), [])
     end.
 
-print_proc(#ld{fd = FD}, PP) ->
+print_prc(#ld{fd = FD}, Prc) ->
     try
         lwrite(FD,
                format(),
-               [pidf(to_list(PP#pidinfo.pid)),
-                funf(reg(PP)),
-                funf(PP#pidinfo.current_function),
-                human(PP#pidinfo.message_queue_len),
-                human(PP#pidinfo.memory),
-                to_list(PP#pidinfo.cpu)])
+               [pidf(to_list(lks(pid, Prc))),
+                funf(reg(Prc)),
+                funf(lks(current_function, Prc)),
+                human(lks(message_queue_len, Prc)),
+                human(lks(memory, Prc)),
+                to_list(lks(cpu, Prc))])
     catch
         _:_ -> lwrite(FD, "~n", [])
     end.
 
-reg(PP) ->
-    case PP#pidinfo.registered_name of
-        [] -> PP#pidinfo.initial_call;
+reg(Prc) ->
+    case lks(registered_name, Prc) of
+        [] -> lks(initial_call, Prc);
         Val -> Val
     end.
 
@@ -190,18 +190,6 @@ funf(Term) -> io_lib:fwrite("~p", [Term]).
 complete_info(PrcData, SysData) ->
     CpuPerRed = cpu_per_red(SysData),
     lists:map(fun(P) -> complete(P, CpuPerRed) end, PrcData).
-
-complete(PidInfo, CpuPerRed) ->
-    Pid = PidInfo#pidinfo.pid,
-    PidInfo#pidinfo{
-      cpu              = CpuPerRed*PidInfo#pidinfo.reductions,
-      current_function = pid_info(Pid, current_function),
-      initial_call     = pid_info(Pid, initial_call),
-      registered_name  = pid_info(Pid, registered_name),
-      last_calls       = pid_info(Pid, last_calls),
-      stack_size       = pid_info(Pid, stack_size),
-      heap_size        = pid_info(Pid, heap_size),
-      total_heap_size  = pid_info(Pid, total_heap_size)}.
 
 cpu_per_red(SysData) ->
     case lks(reductions, SysData) of
@@ -225,9 +213,9 @@ differ(DT, [Old|Olds], [New|News]) ->
 
 diff(DT, Old, New) when is_tuple(Old) andalso is_tuple(New) ->
     tdiff(DT, Old, New);
-diff(DT, [Old = #pidinfo{pid = Pid}|Olds], [New = #pidinfo{pid = Pid}|News]) ->
+diff(DT, [Old = #prcinfo{pid = Pid}|Olds], [New = #prcinfo{pid = Pid}|News]) ->
     [tdiff(DT, Old, New)|diff(DT, Olds, News)];
-diff(DT, [#pidinfo{pid = PidO}|_] = Olds, [#pidinfo{pid = PidN}|_] = News) ->
+diff(DT, [#prcinfo{pid = PidO}|_] = Olds, [#prcinfo{pid = PidN}|_] = News) ->
     case PidO < PidN of
         true  -> diff(DT, tl(Olds), News);
         false -> diff(DT, Olds, tl(News))
@@ -258,14 +246,9 @@ df(DT, X, Y) -> (Y-X)/DT.
 %%% PidInfo is a sorted list of {Pid, Info}
 %%% Info is a list of tagged tuples {atom(), number()}
 
-%% return [#pidinfo{}], with length =< integer(Lines), sorted on atom(Sort)
-toplist(#ld{lines=Lines, sort=Sort}, PrcData) ->
-    lists:sublist(lists:keysort(pidinfo_index(Sort), PrcData), Lines).
-
-pidinfo_index(cpu) -> #pidinfo.cpu;
-pidinfo_index(memory) -> #pidinfo.memory;
-pidinfo_index(reductions) -> #pidinfo.reductions;
-pidinfo_index(message_queue_len) -> #pidinfo.message_queue_len.
+%% return [#prcinfo{}], with length =< integer(Lines), sorted on atom(Sort)
+toplist(#ld{lines = Lines, sort = Sort}, PrcData) ->
+    lists:sublist(lists:keysort(prcinfo_index(Sort), PrcData), Lines).
 
 %%%-------------------------------------------------------------------
 %% collects info about the OS and the Erlang system.
@@ -368,7 +351,7 @@ get_sys_data(LD) ->
          cores            = (LD#ld.constants)#sys_const.cores,
          total_ram        = (LD#ld.constants)#sys_const.total_ram}.
 
-constants(#ld{strategy={linux, ProcStat, _}}) ->
+constants(#ld{strategy = {linux, ProcStat, _}}) ->
     #sys_const{total_ram = total_ram(),
                cores = cores(ProcStat)};
 constants(_) ->
@@ -405,17 +388,8 @@ proc_stat(FD, OS) ->
       iowait = jiffy_to_sec(Iowait)}.
 
 proc_self_stat(FD, OS) ->
-%%% pid, comm, state, ppid, pgrp, session, tty_nr, tpgid, flags,
-%%% minflt, cminflt, majflt, cmajflt, utime, stime, cutime, cstime,
-%%% priority, nice, num_threads, itrealvalue, starttime, vsize, rss
     {ok, Str} = file:pread(FD, 0, 200),
-    {Minflt, Majflt, Utime, Stime, Vsz, Rss} =
-        case string:tokens(Str, " ") of
-            [_, _, _, _, _, _, _, _, _, I10, _, I12, _, I14, I15, _, _, _, _, _, _, _, I23, I24|_] ->
-                {I10, I12, I14, I15, I23, I24};
-            _ ->
-                {0, 0, 0, 0, 0, 0}
-        end,
+    {Minflt, Majflt, Utime, Stime, Vsz, Rss} = proc_self_stat(Str),
     OS#sys_os{
       beam_user = jiffy_to_sec(Utime),
       beam_sys  = jiffy_to_sec(Stime),
@@ -423,6 +397,18 @@ proc_self_stat(FD, OS) ->
       rss       = to_int(Rss),   %% in pages...
       minflt    = to_int(Minflt),
       majflt    = to_int(Majflt)}.
+
+%%% pid, comm, state, ppid, pgrp, session, tty_nr, tpgid, flags,
+%%% minflt, cminflt, majflt, cmajflt, utime, stime, cutime, cstime,
+%%% priority, nice, num_threads, itrealvalue, starttime, vsize, rss
+proc_self_stat(Str) ->
+    case string:tokens(Str, " ") of
+        [_, _, _, _, _, _, _, _, _, I10, _, I12, _,
+         I14, I15, _, _, _, _, _, _, _, I23, I24|_] ->
+            {I10, I12, I14, I15, I23, I24};
+        _ ->
+            {0, 0, 0, 0, 0, 0}
+    end.
 
 jiffy_to_sec(J) ->
     to_int(J)/100. %should use a better transform jiffies->secs
@@ -460,29 +446,33 @@ init_ps() ->
      "ps -o pid, utime, time, vsz, rss, majflt, minflt -p "++os:getpid()++"\n"}.
 
 do_ps(Port, Cmd, OS) ->
+    Data = get_ps_data(Port, Cmd),
+    case[string:tokens(L, " ") || L <- string:tokens(Data, "\n")] of
+        [["PID", "UTIME", "TIME", "VSZ", "RSS", "MAJFLT", "MINFLT"],
+%%%      ["1", "0:00.20", "0:00.30", "2488932", "12600", "-", "-"]]
+         [_, Utime, Time, Vsz, Rss, MajFault, MinFault]] ->
+            UtimeSec = timestr_to_sec(Utime),
+            TimeSec =  timestr_to_sec(Time),  %system+user time
+            OS#sys_os
+                {beam_user = UtimeSec,
+                 beam_sys = TimeSec-UtimeSec,
+                 vsz = to_int(Vsz)*1024,        % to bytes
+                 rss = to_int(Rss),             % in kB pages
+                 minflt = to_int(MinFault),
+                 majflt = to_int(MajFault)};
+        _ ->
+            OS
+    end.
+
+
+get_ps_data(Port, Cmd) ->
     case port_command(Port, Cmd, []) of
         true ->
             receive
-                {Port, {data, Data}} ->
-                    case[string:tokens(L, " ")||L<-string:tokens(Data, "\n")] of
-                        [["PID", "UTIME", "TIME", "VSZ", "RSS", "MAJFLT", "MINFLT"],
-                         %%           ["1", "0:00.20", "0:00.30", "2488932", "12600", "-", "-"]]
-                         [_, Utime, Time, Vsz, Rss, MajFault, MinFault]] ->
-                            UtimeSec = timestr_to_sec(Utime),
-                            TimeSec =  timestr_to_sec(Time),  %system+user time
-                            OS#sys_os
-                                {beam_user = UtimeSec,
-                                 beam_sys = TimeSec-UtimeSec,
-                                 vsz = to_int(Vsz)*1024,        % to bytes
-                                 rss = to_int(Rss),             % in kB pages
-                                 minflt = to_int(MinFault),
-                                 majflt = to_int(MajFault)};
-                        _ ->
-                            OS
-                    end
+                {Port, {data, Data}} -> Data
             end;
         false ->
-            OS
+            []
     end.
 
 %% "8:11.15"
@@ -508,43 +498,60 @@ timestr_to_sec(Str) ->
 %% total_heap_size      bytes
 %%%-------------------------------------------------------------------
 
+prcinfo_index(cpu) -> #prcinfo.cpu;
+prcinfo_index(memory) -> #prcinfo.memory;
+prcinfo_index(reductions) -> #prcinfo.reductions;
+prcinfo_index(message_queue_len) -> #prcinfo.message_queue_len.
+
 get_prc_data(LD) ->
-    case LD#ld.max_procs < erlang:system_info(process_count) of
+    case LD#ld.max_prcs < erlang:system_info(process_count) of
         true  -> [];
-        false -> lists:map(fun pid_info/1, lists:sort(processes()))
+        false -> lists:map(fun prc_info/1, lists:sort(processes()))
     end.
 
-pid_info(Pid) ->
-    #pidinfo{
+prc_info(Pid) ->
+    #prcinfo{
        pid = Pid,
-       memory = pid_info(Pid, memory),
-       reductions = pid_info(Pid, reductions),
-       message_queue_len = pid_info(Pid, message_queue_len)}.
+       memory = prc_info(Pid, memory),
+       reductions = prc_info(Pid, reductions),
+       message_queue_len = prc_info(Pid, message_queue_len)}.
 
-pid_info(Pid, Tag) ->
+complete(PrcInfo, CpuPerRed) ->
+    Pid = lks(pid, PrcInfo),
+    PrcInfo#prcinfo{
+      cpu              = CpuPerRed*PrcInfo#prcinfo.reductions,
+      current_function = prc_info(Pid, current_function),
+      initial_call     = prc_info(Pid, initial_call),
+      registered_name  = prc_info(Pid, registered_name),
+      last_calls       = prc_info(Pid, last_calls),
+      stack_size       = prc_info(Pid, stack_size),
+      heap_size        = prc_info(Pid, heap_size),
+      total_heap_size  = prc_info(Pid, total_heap_size)}.
+
+prc_info(Pid, Tag) ->
     case erlang:process_info(Pid, Tag) of
         undefined -> get_default(Tag, Pid);
         Val       -> mod_val(Pid, Tag, Val)
     end.
 
 get_default(Tag, Pid) ->
-    {_, Default} = pidinfo(Tag, Pid),
+    {_, Default} = prcinfo(Tag, Pid),
     Default.
 
 mod_val(Pid, Tag, Val) ->
-    {Modder, _} = pidinfo(Tag, Pid),
+    {Modder, _} = prcinfo(Tag, Pid),
     Modder(Val).
 
-pidinfo(stack_size, _) ->
+prcinfo(stack_size, _) ->
     {fun(Val) -> 8*Val end,
      0};
-pidinfo(heap_size, _) ->
+prcinfo(heap_size, _) ->
     {fun(Val) -> 8*Val end,
      0};
-pidinfo(total_heap_size, _) ->
+prcinfo(total_heap_size, _) ->
     {fun(Val) -> 8*Val end,
      0};
-pidinfo(last_calls, Pid) ->
+prcinfo(last_calls, Pid) ->
     {fun(Val) ->
              case Val of
                  false -> try process_flag(Pid, save_calls, 16)
@@ -554,10 +561,10 @@ pidinfo(last_calls, Pid) ->
              end
      end,
      []};
-pidinfo(registered_name, _) ->
+prcinfo(registered_name, _) ->
     {fun(Val) -> Val end,
      []};
-pidinfo(initial_call, Pid) ->
+prcinfo(initial_call, Pid) ->
     {fun(Val) ->
              case Val of
                  {proc_lib, init_p, 5} ->
@@ -572,7 +579,7 @@ pidinfo(initial_call, Pid) ->
              end
      end,
      []};
-pidinfo(_, _) ->
+prcinfo(_, _) ->
     {fun(Val) -> Val end,
      []}.
 
@@ -626,7 +633,7 @@ name({name, Name}, _P) ->
 
 tcp_name(IP, Port) ->
     case inet:gethostbyaddr(IP) of
-        {ok, #hostent{h_name=HostName}} ->
+        {ok, #hostent{h_name = HostName}} ->
             try
                 {ok, Names} = net_adm:names(HostName),
                 {value, {NodeName, Port}} = lists:keysearch(Port, 2, Names),
@@ -808,12 +815,12 @@ human(X) when not is_number(X) -> X;
 human(I) when I < 0 -> "-"++human(-I);
 human(I) when 0 < I ->
     case math:log10(I) of
-        M when 15=<M -> human(M-15,"P");
-        M when 12=<M -> human(M-12,"T");
-        M when  9=<M -> human(M-9,"G");
-        M when  6=<M -> human(M-6,"M");
-        M when  3=<M -> human(M-3,"k");
-        _            -> flat("~w",[I])
+        M when 15 =< M -> human(M-15,"P");
+        M when 12 =< M -> human(M-12,"T");
+        M when  9 =< M -> human(M-9,"G");
+        M when  6 =< M -> human(M-6,"M");
+        M when  3 =< M -> human(M-3,"k");
+        _              -> flat("~w",[I])
     end;
 human(_) -> "0".
 
