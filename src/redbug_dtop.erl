@@ -53,19 +53,8 @@ max_prcs(MaxPrcs) ->  redbug_dtop ! {max_prcs, MaxPrcs}.
          prcs = 6,
          max_prcs = 3000}).
 
--record(prcinfo,
-        {pid,
-         reductions,
-         memory,
-         message_queue_len,
-         cpu,
-         current_function,
-         initial_call,
-         registered_name,
-         last_calls,
-         stack_size,
-         heap_size,
-         total_heap_size}).
+-record(data,
+       {sys, prc, net, mnesia}).
 
 %%%---------------------------
 init() ->
@@ -83,7 +72,10 @@ loop(LD) ->
     loop(LD#ld{now = TS, cache = Data}).
 
 get_data(LD) ->
-    [get_sys_data(LD), get_prc_data(LD), get_net_data(), get_mnesia_data()].
+    #data{sys = get_sys_data(LD),
+          prc = get_prc_data(LD),
+          net = get_net_data(),
+          mnesia = get_mnesia_data()}.
 
 print(LD, [SysData, PrcData|_]) ->
     print_del(LD#ld.fd),
@@ -206,30 +198,34 @@ cpu(SysData) ->
 %%----------------------------------------------------
 %% calculate rates
 
-differ(_, [], []) ->
-    [];
-differ(DT, [Old|Olds], [New|News]) ->
-    [diff(DT, Old, New)|differ(DT, Olds, News)].
+%% diff 2 lists of tuples, select pairs where I:th element is identical
+differ(DT, OldData, NewData) ->
+    #data{sys = diff(DT, OldData#data.sys, NewData#data.sys),
+          prc = diff(DT, index_prc(pid), OldData#data.prc, NewData#data.prc),
+          net = diff(DT, index_net(port), OldData#data.net, NewData#data.net),
+          mnesia = diff(DT, OldData#data.mnesia, NewData#data.mnesia)}.
 
-diff(DT, Old, New) when is_tuple(Old) andalso is_tuple(New) ->
-    tdiff(DT, Old, New);
-diff(DT, [Old = #prcinfo{pid = Pid}|Olds], [New = #prcinfo{pid = Pid}|News]) ->
-    [tdiff(DT, Old, New)|diff(DT, Olds, News)];
-diff(DT, [#prcinfo{pid = PidO}|_] = Olds, [#prcinfo{pid = PidN}|_] = News) ->
-    case PidO < PidN of
-        true  -> diff(DT, tl(Olds), News);
-        false -> diff(DT, Olds, tl(News))
+
+diff(DT, I, [Old|_] = Olds, [New|_] = News) ->
+    Kold = element(I, Old),
+    Knew = element(I, New),
+    case {Kold =:= Knew, Kold < Knew} of
+        {true, _} -> [diff(DT, Old, New)|diff(DT, I, tl(Olds), tl(News))];
+        {false, true}  -> diff(DT, tl(Olds), News);
+        {false, false} -> diff(DT, Olds, tl(News))
     end;
-diff(DT, [{Key, Val0}|Olds], [{Key, Val1}|News]) ->
-    [tdiff(DT, {Key, Val0}, {Key, Val1})|diff(DT, Olds, News)];
-diff(_, _, []) ->
+diff(_, _, _, []) ->
     [];
-diff(_, [], News) ->
+diff(_, _, [], News) ->
     News.
 
-tdiff(DT, Old, New) ->
+%% diff each element in 2 tuples
+diff(DT, Old, New) when is_tuple(Old) andalso is_tuple(New) ->
     list_to_tuple(ldiff(DT, tuple_to_list(Old), tuple_to_list(New))).
 
+%% diff elementwise on 2 equally shaped lists
+%% if the element is a number, diff === {NewNumber, (NewNumber-OldNumber)/DeltaTime}
+%% else, diff === NewElement
 ldiff(_, [], []) ->
     [];
 ldiff(DT, [Old|Olds], [New|News]) when is_number(Old) andalso is_number(New)->
@@ -246,9 +242,9 @@ df(DT, X, Y) -> (Y-X)/DT.
 %%% PidInfo is a sorted list of {Pid, Info}
 %%% Info is a list of tagged tuples {atom(), number()}
 
-%% return [#prcinfo{}], with length =< integer(Lines), sorted on atom(Sort)
+%% return [#prc{}], with length =< integer(Lines), sorted on atom(Sort)
 toplist(#ld{lines = Lines, sort = Sort}, PrcData) ->
-    lists:sublist(lists:keysort(prcinfo_index(Sort), PrcData), Lines).
+    lists:sublist(lists:keysort(index_prc(Sort), PrcData), Lines).
 
 %%%-------------------------------------------------------------------
 %% collects info about the OS and the Erlang system.
@@ -264,7 +260,7 @@ toplist(#ld{lines = Lines, sort = Sort}, PrcData) ->
 %%     - return an empty list
 %%
 %%
--record(sys_info,
+-record(sys,
         {procs,                %% [count]   erlang:system_info(process_count)
          context_switches,     %% [count/s] erlang:statistics(context_switches)
          gcs,                  %% [count/s] erlang:statistics(garbage_collection)
@@ -319,7 +315,7 @@ get_sys_data(LD) ->
     {{input, IoIn}, {output, IoOut}} = erlang:statistics(io),
     {Reds, _}                        = erlang:statistics(reductions),
     OS                               = os_info(LD),
-    #sys_info
+    #sys
         {procs            = erlang:system_info(process_count),
          context_switches = Ctxt,
          gcs              = GCs,
@@ -485,23 +481,25 @@ timestr_to_sec(Str) ->
 %%%-------------------------------------------------------------------
 %% collect info about an erlang process.
 %% uses erlang:process_info/2
-%%
-%% registered_name      atom | []
-%% initial_call         {M, F, A}
-%% current_function     {M, F, A}
-%% last_calls           [{M, F, A}]
-%% reductions           integer()
-%% message_queue_len    integer()
-%% memory               bytes
-%% stack_size           bytes
-%% heap_size            bytes
-%% total_heap_size      bytes
-%%%-------------------------------------------------------------------
 
-prcinfo_index(cpu) -> #prcinfo.cpu;
-prcinfo_index(memory) -> #prcinfo.memory;
-prcinfo_index(reductions) -> #prcinfo.reductions;
-prcinfo_index(message_queue_len) -> #prcinfo.message_queue_len.
+-record(prc,
+        {pid,
+         cpu,                 %%   reductions * cpu_per_reduction
+         reductions,          %%   integer()  
+         memory,              %%   bytes      
+         message_queue_len,   %%   integer()  
+         current_function,    %%   {M, F, A}  
+         initial_call,        %%   {M, F, A}  
+         registered_name,     %%   atom | []  
+         last_calls,          %%   [{M, F, A}]
+         stack_size,          %%   bytes      
+         heap_size,           %%   bytes      
+         total_heap_size}).   %%   bytes
+
+index_prc(cpu) -> #prc.cpu;
+index_prc(memory) -> #prc.memory;
+index_prc(reductions) -> #prc.reductions;
+index_prc(message_queue_len) -> #prc.message_queue_len.
 
 get_prc_data(LD) ->
     case LD#ld.max_prcs < erlang:system_info(process_count) of
@@ -510,16 +508,16 @@ get_prc_data(LD) ->
     end.
 
 prc_info(Pid) ->
-    #prcinfo{
+    #prc{
        pid = Pid,
        memory = prc_info(Pid, memory),
        reductions = prc_info(Pid, reductions),
        message_queue_len = prc_info(Pid, message_queue_len)}.
 
-complete(PrcInfo, CpuPerRed) ->
-    Pid = lks(pid, PrcInfo),
-    PrcInfo#prcinfo{
-      cpu              = CpuPerRed*PrcInfo#prcinfo.reductions,
+complete(Prc, CpuPerRed) ->
+    Pid = lks(pid, Prc),
+    Prc#prc{
+      cpu              = CpuPerRed*Prc#prc.reductions,
       current_function = prc_info(Pid, current_function),
       initial_call     = prc_info(Pid, initial_call),
       registered_name  = prc_info(Pid, registered_name),
@@ -600,36 +598,57 @@ pinf_disk_log(Pid) ->
 
 -include_lib("kernel/include/inet.hrl").
 
+-record(net, {name,
+              port,
+              input,
+              output,
+              recv_oct}).
+
+index_net(port) -> #net.port.
+
 get_net_data() ->
-    lists:sort([port_info(P) || P <- erlang:ports()]).
+    lists:map(fun port_info/1, lists:sort(erlang:ports())).
 
-%%returns {Name::atom(), Stats::list()}
-port_info(P) when is_port(P) ->
-    try stats(P, name(P))
-    catch _:_ -> {P, []}
+%%returns #net{}
+port_info(P) ->
+    try maybe_inet(#net{port = P,
+                        name = name(P),
+                        input = erlang:port_info(P, input),
+                        output = erlang:port_info(P, output)})
+    catch _:_ -> #net{port = P}
     end.
 
-stats(P, {driver, Name}) ->
-    {{driver, Name}, erlang:port_info(P)};
-stats(P, Name) ->
-    case erlang:port_info(P) of
-        undefined -> throw(port_gone);
-        Info ->
-            try {ok, Stats} = inet:getstat(P), {Name, Info++Stats}
-            catch _:_ -> {Name, Info}
-            end
+maybe_inet(Net = #net{name = "tcp"++_}) -> add_inet(Net);
+maybe_inet(Net = #net{name = "udp"++_}) -> add_inet(Net);
+maybe_inet(Net) -> Net.
+
+%% [{recv_oct,4},
+%%  {recv_cnt,1},
+%%  {recv_max,4},
+%%  {recv_avg,4},
+%%  {recv_dvi,0},
+%%  {send_oct,18},
+%%  {send_cnt,1},
+%%  {send_max,18},
+%%  {send_avg,18},
+%%  {send_pend,0}]
+add_inet(Net = #net{port = Port}) ->
+    try {ok, Stats} = inet:getstat(Port),
+         Net#net{recv_oct = lks(recv_oct, Stats)}
+    catch _:_ -> Net
     end.
 
-name(P) -> name(erlang:port_info(P, name), P).
-
-name({name, "udp_inet"}, P) ->
-    {ok, Port} = inet:port(P),
-    {udp, Port};
-name({name, "tcp_inet"}, P) ->
-    {ok, {IP, Port}} = inet:peername(P),
-    {tcp, {IP, Port, tcp_name(IP, Port)}};
-name({name, Name}, _P) ->
-    {driver, Name}.
+name(P) ->
+    case erlang:port_info(P, name) of
+        {name, "udp_inet"} ->
+            {ok, Port} = inet:port(P),
+            flat("udp:~p", [Port]);
+        {name, "tcp_inet"} ->
+            {ok, {IP, Port}} = inet:peername(P),
+            flat("tcp:~p:~p-~s", [IP, Port, tcp_name(IP, Port)]);
+        {name, Name} ->
+            Name
+    end.
 
 tcp_name(IP, Port) ->
     case inet:gethostbyaddr(IP) of
@@ -637,19 +656,18 @@ tcp_name(IP, Port) ->
             try
                 {ok, Names} = net_adm:names(HostName),
                 {value, {NodeName, Port}} = lists:keysearch(Port, 2, Names),
-                {node, NodeName++"@"++HostName}
+                NodeName++"@"++HostName
             catch
-                _:_ -> {tcp, {HostName, Port}}
+                _:_ -> HostName
             end;
         _ ->
-            X = to_list(IP),
-            {tcp, {tl(lists:flatten([[$., to_list(I)]||I<-X])), Port}}
+            ""
     end.
 
 %%----------------------------------------------------------------------------------------
 %% mnesia activity
 
--record(mnesia_info,
+-record(mnesia,
         {logged_transactions,
          restarted_transactions,
          committed_transactions,
@@ -664,11 +682,11 @@ tcp_name(IP, Port) ->
 get_mnesia_data() ->
     case mnesia:system_info(is_running) of
         no  -> {};
-        yes -> mnesia_info()
+        yes -> mnesia()
     end.
 
-mnesia_info() ->
-    #mnesia_info{
+mnesia() ->
+    #mnesia{
        held_locks             = held_locks(),
        lock_queue             = lock_queue(),
        subscribers            = subscribers(),
