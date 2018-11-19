@@ -43,7 +43,7 @@ max_prcs(MaxPrcs) ->  redbug_dtop ! {max_prcs, MaxPrcs}.
 %%%---------------------------
 -record(ld,
         {fd = standard_io,
-         sort = cpu,
+         sort = dreds,
          tick = 2000,
          lines = 19,
          strategy = strategy(),
@@ -213,8 +213,8 @@ diff(DT, I, [Old|_] = Olds, [New|_] = News) ->
     Knew = element(I, New),
     case {Kold =:= Knew, Kold < Knew} of
         {true, _} -> [diff(DT, Old, New)|diff(DT, I, tl(Olds), tl(News))];
-        {false, true}  -> diff(DT, tl(Olds), News);
-        {false, false} -> diff(DT, Olds, tl(News))
+        {false, true}  -> diff(DT, I, tl(Olds), News);
+        {false, false} -> diff(DT, I, Olds, tl(News))
     end;
 diff(_, _, _, _) ->
     [].
@@ -244,7 +244,7 @@ df(DT, X, Y) -> (Y-X)/DT.
 
 %% return [#prc{}], with length =< integer(Lines), sorted on atom(Sort)
 toplist(#ld{lines = Lines, sort = Sort}, PrcData) ->
-    lists:sublist(lists:keysort(index_prc(Sort), PrcData), Lines).
+    lists:sublist(lists:sort(index_prc(Sort), PrcData), Lines).
 
 %%%-------------------------------------------------------------------
 %% collects info about the OS and the Erlang system.
@@ -521,6 +521,8 @@ index_prc(memory) -> #prc.memory;
 index_prc(reductions) -> #prc.reductions;
 index_prc(message_queue_len) -> #prc.message_queue_len.
 
+pull_prc_d(reductions, Prc) -> maybe_el(2, Prc#prc.reductions).
+
 pull_prc(pid               , Prc) -> maybe_el(1, Prc#prc.pid);
 pull_prc(current_function  , Prc) -> maybe_el(1, Prc#prc.current_function);
 pull_prc(message_queue_len , Prc) -> maybe_el(1, Prc#prc.message_queue_len);
@@ -545,7 +547,7 @@ prc_info(Pid) ->
 complete(Prc, CpuPerRed) ->
     Pid = Prc#prc.pid,
     Prc#prc{
-      cpu              = CpuPerRed*Prc#prc.reductions,
+      cpu              = CpuPerRed*pull_prc_d(reductions, Prc),
       current_function = prc_info(Pid, current_function),
       initial_call     = prc_info(Pid, initial_call),
       registered_name  = prc_info(Pid, registered_name),
@@ -557,7 +559,8 @@ complete(Prc, CpuPerRed) ->
 prc_info(Pid, Tag) ->
     case erlang:process_info(Pid, Tag) of
         undefined -> get_default(Tag, Pid);
-        Val       -> mod_val(Pid, Tag, Val)
+        [] when Tag == registered_name -> mod_val(Pid, Tag, "");
+        {Tag, Val} -> mod_val(Pid, Tag, Val)
     end.
 
 get_default(Tag, Pid) ->
