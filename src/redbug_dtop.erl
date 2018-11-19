@@ -77,37 +77,37 @@ get_data(LD) ->
           net = get_net_data(),
           mnesia = get_mnesia_data()}.
 
-print(LD, [SysData, PrcData|_]) ->
+print(LD, #data{sys = SysData, prc = PrcData}) ->
     print_del(LD#ld.fd),
     print_sys(LD#ld.fd, SysData),
-    lwrite(LD#ld.fd, "~n", []),
+    io:fwrite(LD#ld.fd, "~n", []),
     print_tags(LD#ld.fd),
     print_prcs(LD, PrcData, SysData).
 
 print_sys(FD, Sys) ->
-    lwrite(FD, "~s~n", [sys_str(Sys)]),
-    lwrite(FD, memf(), memi(Sys)).
+    io:fwrite(FD, "~s~n", [sys_str(Sys)]),
+    io:fwrite(FD, memf(), memi(Sys)).
 
 memf() ->
     "memory:      proc~8s, atom~8s, bin~8s, code~8s, ets~8s~n".
 
 memi(Sys) ->
-    try [human(lks(T, Sys)) || T <- [processes, atom, binary, code, ets]]
+    try [human(pull_sys(T, Sys)) || T <- [processes, atom, binary, code, ets]]
     catch _:_ -> ["", "", "", "", ""]
     end.
 
 sys_str(Sys) ->
-    {_, Time} = calendar:now_to_local_time(lks(now, Sys)),
+    {_, Time} = calendar:now_to_local_time(pull_sys(now, Sys)),
     H         = pad(element(1, Time), 2, $0, left),
     M         = pad(element(2, Time), 2, $0, left),
     S         = pad(element(3, Time), 2, $0, left),
     Node      = node(),
-    MEMbeam   = human(lks(beam_vsz, Sys, 0)),
-    MEM       = human(lks(total, Sys)),
-    CPUbeam   = to_list(100*(lks(beam_user, Sys, 0)+lks(beam_kernel, Sys, 0))),
-    CPU       = to_list(100*(lks(user, Sys, 0)+lks(kernel, Sys, 0))),
-    Prcs      = human(lks(prcs, Sys)),
-    RunQ      = human(lks(run_queue, Sys)),
+    MEMbeam   = human(pull_sys(beam_vsz, Sys)),
+    MEM       = human(pull_sys(total, Sys)),
+    CPUbeam   = to_list(100*(pull_sys(beam_user, Sys) + pull_sys(beam_kernel, Sys))),
+    CPU       = to_list(100*(pull_sys(user, Sys)+pull_sys(kernel, Sys))),
+    Prcs      = human(pull_sys(prcs, Sys)),
+    RunQ      = human(pull_sys(run_queue, Sys)),
 
     SYS = lists:sublist(lists:append(["size: "    , MEM,
                                       "("         , MEMbeam,
@@ -133,14 +133,14 @@ pad(Str, L, Len, Pad, LeftRight) ->
     end.
 
 print_del(FD) ->
-    lwrite(FD, "~s~n", [lists:duplicate(79, $-)]).
+    io:fwrite(FD, "~s~n", [lists:duplicate(79, $-)]).
 
 format() -> "~-14s ~-28s ~-17s~7s~7s~4s~n".
 
 tags() -> ["pid", "name", "current", "msgq", "mem", "cpu"].
 
 print_tags(FD) ->
-    lwrite(FD, format(), tags()).
+    io:fwrite(FD, format(), tags()).
 
 print_prcs(LD, PrcData, SysData) ->
     Prcs = complete_info(toplist(LD, PrcData), SysData),
@@ -154,21 +154,21 @@ pad_lines(#ld{lines = Lines}, Prcs) ->
 
 print_prc(#ld{fd = FD}, Prc) ->
     try
-        lwrite(FD,
+        io:fwrite(FD,
                format(),
-               [pidf(to_list(lks(pid, Prc))),
+               [pidf(to_list(pull_prc(pid, Prc))),
                 funf(reg(Prc)),
-                funf(lks(current_function, Prc)),
-                human(lks(message_queue_len, Prc)),
-                human(lks(memory, Prc)),
-                to_list(lks(cpu, Prc))])
+                funf(pull_prc(current_function, Prc)),
+                human(pull_prc(message_queue_len, Prc)),
+                human(pull_prc(memory, Prc)),
+                to_list(pull_prc(cpu, Prc))])
     catch
-        _:_ -> lwrite(FD, "~n", [])
+        _:_ -> io:fwrite(FD, "~n", [])
     end.
 
 reg(Prc) ->
-    case lks(registered_name, Prc) of
-        [] -> lks(initial_call, Prc);
+    case pull_prc(registered_name, Prc) of
+        [] -> pull_prc(initial_call, Prc);
         Val -> Val
     end.
 
@@ -184,13 +184,13 @@ complete_info(PrcData, SysData) ->
     lists:map(fun(P) -> complete(P, CpuPerRed) end, PrcData).
 
 cpu_per_red(SysData) ->
-    case lks(reductions, SysData) of
+    case pull_sys_d(reductions, SysData) of
         0    -> 0;
         Reds -> 100*cpu(SysData)/Reds
     end.
 
 cpu(SysData) ->
-    case lks(beam_user, SysData, 1)+lks(beam_kernel, SysData, 0) of
+    case pull_sys(beam_user, SysData) + pull_sys(beam_kernel, SysData) of
         0.0 -> 1;
         C -> C
     end.
@@ -198,7 +198,6 @@ cpu(SysData) ->
 %%----------------------------------------------------
 %% calculate rates
 
-%% diff 2 lists of tuples, select pairs where I:th element is identical
 differ(DT, OldData, NewData) ->
     #data{sys = diff(DT, OldData#data.sys, NewData#data.sys),
           prc = diff(DT, index_prc(pid), OldData#data.prc, NewData#data.prc),
@@ -206,6 +205,9 @@ differ(DT, OldData, NewData) ->
           mnesia = diff(DT, OldData#data.mnesia, NewData#data.mnesia)}.
 
 
+%% diff 2 lists of tuples.
+%% Select pairs of tuples where I:th element are identical
+%% lists should be  sorted on I:th element
 diff(DT, I, [Old|_] = Olds, [New|_] = News) ->
     Kold = element(I, Old),
     Knew = element(I, New),
@@ -214,10 +216,8 @@ diff(DT, I, [Old|_] = Olds, [New|_] = News) ->
         {false, true}  -> diff(DT, tl(Olds), News);
         {false, false} -> diff(DT, Olds, tl(News))
     end;
-diff(_, _, _, []) ->
-    [];
-diff(_, _, [], News) ->
-    News.
+diff(_, _, _, _) ->
+    [].
 
 %% diff each element in 2 tuples
 diff(DT, Old, New) when is_tuple(Old) andalso is_tuple(New) ->
@@ -261,7 +261,8 @@ toplist(#ld{lines = Lines, sort = Sort}, PrcData) ->
 %%
 %%
 -record(sys,
-        {procs,                %% [count]   erlang:system_info(process_count)
+        {now,
+         prcs,                 %% [count]   erlang:system_info(process_count)
          context_switches,     %% [count/s] erlang:statistics(context_switches)
          gcs,                  %% [count/s] erlang:statistics(garbage_collection)
          gc_reclaimed,         %% [byte/s]  erlang:statistics(garbage_collection)
@@ -309,6 +310,23 @@ toplist(#ld{lines = Lines, sort = Sort}, PrcData) ->
          majflt    = 0
         }).
 
+pull_sys_d(reductions, Sys) -> maybe_el(2, Sys#sys.reductions).
+
+pull_sys(atom       , Sys) -> maybe_el(1, Sys#sys.atom);
+pull_sys(beam_kernel, Sys) -> maybe_el(1, Sys#sys.beam_kernel);
+pull_sys(beam_user  , Sys) -> maybe_el(1, Sys#sys.beam_user);
+pull_sys(beam_vsz   , Sys) -> maybe_el(1, Sys#sys.beam_vsz);
+pull_sys(binary     , Sys) -> maybe_el(1, Sys#sys.binary);
+pull_sys(code       , Sys) -> maybe_el(1, Sys#sys.code);
+pull_sys(ets        , Sys) -> maybe_el(1, Sys#sys.ets);
+pull_sys(kernel     , Sys) -> maybe_el(1, Sys#sys.kernel);
+pull_sys(now        , Sys) -> maybe_el(1, Sys#sys.now);
+pull_sys(prcs       , Sys) -> maybe_el(1, Sys#sys.prcs);
+pull_sys(processes  , Sys) -> maybe_el(1, Sys#sys.processes);
+pull_sys(run_queue  , Sys) -> maybe_el(1, Sys#sys.run_queue);
+pull_sys(total      , Sys) -> maybe_el(1, Sys#sys.total);
+pull_sys(user       , Sys) -> maybe_el(1, Sys#sys.user).
+
 get_sys_data(LD) ->
     {Ctxt, 0}                        = erlang:statistics(context_switches),
     {GCs, GCwords, 0}                = erlang:statistics(garbage_collection),
@@ -316,7 +334,8 @@ get_sys_data(LD) ->
     {Reds, _}                        = erlang:statistics(reductions),
     OS                               = os_info(LD),
     #sys
-        {procs            = erlang:system_info(process_count),
+        {now              = erlang:timestamp(),
+         prcs             = erlang:system_info(process_count),
          context_switches = Ctxt,
          gcs              = GCs,
          gc_reclaimed     = GCwords,
@@ -485,21 +504,30 @@ timestr_to_sec(Str) ->
 -record(prc,
         {pid,
          cpu,                 %%   reductions * cpu_per_reduction
-         reductions,          %%   integer()  
-         memory,              %%   bytes      
-         message_queue_len,   %%   integer()  
-         current_function,    %%   {M, F, A}  
-         initial_call,        %%   {M, F, A}  
-         registered_name,     %%   atom | []  
+         reductions,          %%   integer()
+         memory,              %%   bytes
+         message_queue_len,   %%   integer()
+         current_function,    %%   {M, F, A}
+         initial_call,        %%   {M, F, A}
+         registered_name,     %%   atom | []
          last_calls,          %%   [{M, F, A}]
-         stack_size,          %%   bytes      
-         heap_size,           %%   bytes      
+         stack_size,          %%   bytes
+         heap_size,           %%   bytes
          total_heap_size}).   %%   bytes
 
+index_prc(pid) -> #prc.pid;
 index_prc(cpu) -> #prc.cpu;
 index_prc(memory) -> #prc.memory;
 index_prc(reductions) -> #prc.reductions;
 index_prc(message_queue_len) -> #prc.message_queue_len.
+
+pull_prc(pid               , Prc) -> maybe_el(1, Prc#prc.pid);
+pull_prc(current_function  , Prc) -> maybe_el(1, Prc#prc.current_function);
+pull_prc(message_queue_len , Prc) -> maybe_el(1, Prc#prc.message_queue_len);
+pull_prc(memory            , Prc) -> maybe_el(1, Prc#prc.memory);
+pull_prc(cpu               , Prc) -> maybe_el(1, Prc#prc.cpu);
+pull_prc(registered_name   , Prc) -> maybe_el(1, Prc#prc.registered_name);
+pull_prc(initial_call      , Prc) -> maybe_el(1, Prc#prc.initial_call).
 
 get_prc_data(LD) ->
     case LD#ld.max_prcs < erlang:system_info(process_count) of
@@ -515,7 +543,7 @@ prc_info(Pid) ->
        message_queue_len = prc_info(Pid, message_queue_len)}.
 
 complete(Prc, CpuPerRed) ->
-    Pid = lks(pid, Prc),
+    Pid = Prc#prc.pid,
     Prc#prc{
       cpu              = CpuPerRed*Prc#prc.reductions,
       current_function = prc_info(Pid, current_function),
@@ -602,9 +630,29 @@ pinf_disk_log(Pid) ->
               port,
               input,
               output,
-              recv_oct}).
+              recv_avg,
+              recv_cnt,
+              recv_dvi,
+              recv_max,
+              recv_oct,
+              send_avg,
+              send_cnt,
+              send_max,
+              send_oct,
+              send_pend}).
 
 index_net(port) -> #net.port.
+
+push_net({recv_avg, V}, Net) -> Net#net{recv_avg = V};
+push_net({recv_cnt, V}, Net) -> Net#net{recv_cnt = V};
+push_net({recv_dvi, V}, Net) -> Net#net{recv_dvi = V};
+push_net({recv_max, V}, Net) -> Net#net{recv_max = V};
+push_net({recv_oct, V}, Net) -> Net#net{recv_oct = V};
+push_net({send_avg, V}, Net) -> Net#net{send_avg = V};
+push_net({send_cnt, V}, Net) -> Net#net{send_cnt = V};
+push_net({send_max, V}, Net) -> Net#net{send_max = V};
+push_net({send_oct, V}, Net) -> Net#net{send_oct = V};
+push_net({send_pend,V}, Net) -> Net#net{send_pend = V}.
 
 get_net_data() ->
     lists:map(fun port_info/1, lists:sort(erlang:ports())).
@@ -622,19 +670,9 @@ maybe_inet(Net = #net{name = "tcp"++_}) -> add_inet(Net);
 maybe_inet(Net = #net{name = "udp"++_}) -> add_inet(Net);
 maybe_inet(Net) -> Net.
 
-%% [{recv_oct,4},
-%%  {recv_cnt,1},
-%%  {recv_max,4},
-%%  {recv_avg,4},
-%%  {recv_dvi,0},
-%%  {send_oct,18},
-%%  {send_cnt,1},
-%%  {send_max,18},
-%%  {send_avg,18},
-%%  {send_pend,0}]
 add_inet(Net = #net{port = Port}) ->
     try {ok, Stats} = inet:getstat(Port),
-         Net#net{recv_oct = lks(recv_oct, Stats)}
+         lists:foldl(fun push_net/2, Net, Stats)
     catch _:_ -> Net
     end.
 
@@ -806,15 +844,6 @@ ets_object_count(Table) ->
 %% ---------------------------------------------------------------
 %% utils
 
-lks(Tag, TVs, Def) ->
-    try lks(Tag, TVs)
-    catch {not_found, _} -> Def
-    end.
-
-lks(Tag, [])             -> throw({not_found, Tag});
-lks(Tag, [{Tag, Val}|_]) -> Val;
-lks(Tag, [_|List])       -> lks(Tag, List).
-
 flat(F, A) ->
     lists:flatten(io_lib:fwrite(F, A)).
 
@@ -847,5 +876,6 @@ human(E, M) ->
 
 delta_time(TS0, TS1) -> timer:now_diff(TS0, TS1)/1000000.
 
-lwrite(FD, Format, As) ->
-    io:fwrite(FD, Format, As).
+maybe_el(1, {E, _}) -> E;
+maybe_el(2, {_, E}) -> E;
+maybe_el(_, E) -> E.
