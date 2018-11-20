@@ -36,14 +36,24 @@ blocking_start() ->
 
 stop() -> exit(whereis(redbug_dtop), kill).
 
-sort(Col) -> redbug_dtop ! {sort, Col}.
+sort(Col) ->
+    case lists:member(Col, sort_criteria()) of
+        true -> redbug_dtop ! {sort, Col};
+        false -> {unknown_sort_criteria, sort_criteria()}
+    end.
 
-max_prcs(MaxPrcs) ->  redbug_dtop ! {max_prcs, MaxPrcs}.
+max_prcs(MaxPrcs) ->
+    case is_integer(MaxPrcs) of
+        true -> redbug_dtop ! {max_prcs, MaxPrcs};
+        false -> {bad_limit, not_integer}
+    end.
+
+sort_criteria() -> [cpu, mem, msgq].
 
 %%%---------------------------
 -record(ld,
         {fd = standard_io,
-         sort = dreds,
+         sort = cpu,
          tick = 2000,
          lines = 19,
          strategy = strategy(),
@@ -238,13 +248,18 @@ df(DT, X, Y) -> (Y-X)/DT.
 
 %%--------------------------------------------------------------------------
 %% calculate process toplist
-%%% Dreds, Dmems, Mems and Msgqs are sorted lists of pids
-%%% PidInfo is a sorted list of {Pid, Info}
-%%% Info is a list of tagged tuples {atom(), number()}
 
 %% return [#prc{}], with length =< integer(Lines), sorted on atom(Sort)
-toplist(#ld{lines = Lines, sort = Sort}, PrcData) ->
-    lists:sublist(lists:sort(index_prc(Sort), PrcData), Lines).
+toplist(#ld{lines = N, sort = Sort}, PrcData) ->
+    lists:sublist(lists:reverse(lists:sort(mk_toplist_le(Sort), PrcData)), N).
+
+mk_toplist_le(Sort) ->
+    Pull = mk_pull(Sort),
+    fun(A, B) -> Pull(A) =< Pull(B) end.
+
+mk_pull(cpu)  -> fun(X) -> pull_prc_d(reductions, X) end;
+mk_pull(msgq) -> fun(X) -> pull_prc(message_queue_len, X) end;
+mk_pull(mem)  -> fun(X) -> pull_prc(memory, X) end.
 
 %%%-------------------------------------------------------------------
 %% collects info about the OS and the Erlang system.
