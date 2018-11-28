@@ -114,8 +114,8 @@ sys_str(Sys) ->
     Node      = node(),
     MEMbeam   = human(pull_sys(beam_vsz, Sys)),
     MEM       = human(pull_sys(total, Sys)),
-    CPUbeam   = to_list(100*(pull_sys(beam_user, Sys) + pull_sys(beam_kernel, Sys))),
-    CPU       = to_list(100*(pull_sys(user, Sys)+pull_sys(kernel, Sys))),
+    CPUbeam   = to_list(100*(pull_sys_d(beam_user, Sys) + pull_sys_d(beam_kernel, Sys))),
+    CPU       = to_list(100*(pull_sys_d(user, Sys)+pull_sys_d(kernel, Sys))),
     Prcs      = human(pull_sys(prcs, Sys)),
     RunQ      = human(pull_sys(run_queue, Sys)),
 
@@ -200,7 +200,7 @@ cpu_per_red(SysData) ->
     end.
 
 cpu(SysData) ->
-    case pull_sys(beam_user, SysData) + pull_sys(beam_kernel, SysData) of
+    case pull_sys_d(beam_user, SysData) + pull_sys_d(beam_kernel, SysData) of
         0.0 -> 1;
         C -> C
     end.
@@ -325,29 +325,29 @@ mk_pull(mem)  -> fun(X) -> pull_prc(memory, X) end.
          majflt    = 0
         }).
 
-pull_sys_d(reductions, Sys) -> maybe_el(2, Sys#sys.reductions).
+pull_sys_d(reductions , Sys) -> maybe_el(2, Sys#sys.reductions);
+pull_sys_d(beam_kernel, Sys) -> maybe_el(2, Sys#sys.beam_kernel);
+pull_sys_d(beam_user  , Sys) -> maybe_el(2, Sys#sys.beam_user);
+pull_sys_d(kernel     , Sys) -> maybe_el(2, Sys#sys.kernel);
+pull_sys_d(user       , Sys) -> maybe_el(2, Sys#sys.user).
 
 pull_sys(atom       , Sys) -> maybe_el(1, Sys#sys.atom);
-pull_sys(beam_kernel, Sys) -> maybe_el(1, Sys#sys.beam_kernel);
-pull_sys(beam_user  , Sys) -> maybe_el(1, Sys#sys.beam_user);
 pull_sys(beam_vsz   , Sys) -> maybe_el(1, Sys#sys.beam_vsz);
 pull_sys(binary     , Sys) -> maybe_el(1, Sys#sys.binary);
 pull_sys(code       , Sys) -> maybe_el(1, Sys#sys.code);
 pull_sys(ets        , Sys) -> maybe_el(1, Sys#sys.ets);
-pull_sys(kernel     , Sys) -> maybe_el(1, Sys#sys.kernel);
+pull_sys(total      , Sys) -> maybe_el(1, Sys#sys.total);
 pull_sys(now        , Sys) -> maybe_el(1, Sys#sys.now);
 pull_sys(prcs       , Sys) -> maybe_el(1, Sys#sys.prcs);
 pull_sys(processes  , Sys) -> maybe_el(1, Sys#sys.processes);
-pull_sys(run_queue  , Sys) -> maybe_el(1, Sys#sys.run_queue);
-pull_sys(total      , Sys) -> maybe_el(1, Sys#sys.total);
-pull_sys(user       , Sys) -> maybe_el(1, Sys#sys.user).
+pull_sys(run_queue  , Sys) -> maybe_el(1, Sys#sys.run_queue).
 
 get_sys_data(LD) ->
     {Ctxt, 0}                        = erlang:statistics(context_switches),
     {GCs, GCwords, 0}                = erlang:statistics(garbage_collection),
     {{input, IoIn}, {output, IoOut}} = erlang:statistics(io),
     {Reds, _}                        = erlang:statistics(reductions),
-    OS                               = os_info(LD),
+    OS                               = os_info(LD#ld.strategy),
     #sys
         {now              = erlang:timestamp(),
          prcs             = erlang:system_info(process_count),
@@ -473,7 +473,7 @@ total_ram() ->
 init_ps() ->
     {ps,
      open_port({spawn, "/bin/sh"}, [stream]),
-     "ps -o pid, utime, time, vsz, rss, majflt, minflt -p "++os:getpid()++"\n"}.
+     "ps -o pid,utime,time,vsz,rss,majflt,minflt -p "++os:getpid()++"\n"}.
 
 do_ps(Port, Cmd, OS) ->
     Data = get_ps_data(Port, Cmd),
