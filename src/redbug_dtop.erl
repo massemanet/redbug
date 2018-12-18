@@ -475,6 +475,8 @@ init_ps() ->
      open_port({spawn, "/bin/sh"}, [stream]),
      "ps -o pid,utime,time,vsz,rss,majflt,minflt -p "++os:getpid()++"\n"}.
 
+%%% iostat -w1 -c2 -dC | tail -n1 | awk '{print $4,$5}' && ps -o pid,utime,time,vsz,rss,majflt,minflt -p 
+
 do_ps(Port, Cmd, OS) ->
     Data = get_ps_data(Port, Cmd),
     case[string:tokens(L, " ") || L <- string:tokens(Data, "\n")] of
