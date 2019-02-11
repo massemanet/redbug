@@ -206,8 +206,10 @@ body(Str) ->
     {done,{ok,Toks0,1},[]} ->
       Toks = case Toks0 of
         [{atom,1,Module},?LEX_COLUMN | _] ->
-          Defs = scan_records(read_records(Module, []), []),
-          replace_records(Defs, Toks0);
+          case catch scan_records(read_records(Module, []), []) of
+                   R when is_list(R) -> replace_records(R, Toks0);
+                   _ -> Toks0
+          end;
         _ -> Toks0
       end,
       case erl_parse:parse_exprs(Toks) of
@@ -369,7 +371,6 @@ rewrite_records([E | T], L) ->
 
 %%% create a property list with all records (in abstract code)
 
-scan_records([], X) when not is_list(X) -> [];
 scan_records([], L) -> L;
 scan_records([{attribute,_,record, {Name, Fields}} | T], L) ->
   scan_records(T, [scan_record(Name, Fields) | L]);
