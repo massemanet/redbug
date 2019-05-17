@@ -125,10 +125,10 @@ arities(M,F) ->
   [Ari || {Fun,Ari} <- functions(M),Fun =:= F].
 
 locals(M) ->
-  case code:which(M) of
+  case get_beam(M) of
     preloaded -> [];
-    F ->
-      case beam_lib:chunks(F,[locals]) of
+    File ->
+      case beam_lib:chunks(File,[locals]) of
         {ok,{M,[{locals,Locals}]}} ->
           Locals;
         {error,beam_lib,{missing_chunk,_,_}} ->
@@ -144,14 +144,16 @@ maybe_load_rtps(Rtps) ->
 
 maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
   try
-    case code:which(M) of
-      preloaded         -> ok;
-      non_existing      -> throw(non_existing_module);
-      L when is_list(L) -> [c:l(M) || false == code:is_loaded(M)]
+    case get_beam(M) of
+      preloaded -> ok;
+      not_found -> throw(non_existing_module);
+      _ -> ok
     end,
     [Rtp|O]
   catch
-    _:_ -> O
+    _E:_R ->
+      %% erlang:display([error, E, R]),
+      O
   end.
 
 do_start_trace(Cnf) ->
@@ -453,3 +455,18 @@ ts() -> erlang:now().
 -else.
 ts() -> erlang:timestamp().
 -endif.
+
+get_beam(Mod) when is_atom(Mod) ->
+  case code:which(Mod) of
+    preloaded -> preloaded;
+    non_existing -> not_found;
+    cover_compiled ->
+      {_, _, File} = code:get_object_code(Mod),
+      File;
+    File when is_list(File) ->
+      case code:is_loaded(Mod) of
+        false -> c:l(Mod);
+        _     -> ok
+      end,
+      File
+  end.
