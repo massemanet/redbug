@@ -128,7 +128,8 @@ locals(M) ->
   case code:which(M) of
     preloaded -> [];
     F ->
-      case beam_lib:chunks(F,[locals]) of
+      {ok,Bin,_FullName} = erl_prim_loader:get_file(F),
+      case beam_lib:chunks(Bin,[locals]) of
         {ok,{M,[{locals,Locals}]}} ->
           Locals;
         {error,beam_lib,{missing_chunk,_,_}} ->
