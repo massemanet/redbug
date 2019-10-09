@@ -11,6 +11,7 @@
 -export([help/0]).
 -export([start/1, start/2, start/3, start/4, start/5]).
 -export([stop/0]).
+-export([dtop/0, dtop/1]).
 
 -define(log(T), error_logger:info_report(
                   [process_info(self(), current_function),
@@ -131,6 +132,29 @@ help() ->
     , ""
     ],
   lists:foreach(fun(S) -> io:fwrite(standard_io, "~s~n", [S])end, Text).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% dtop facade
+
+dtop() ->
+  dtop(#{}).
+
+dtop(Cfg) ->
+  try
+    redbug_dtop:start(),
+    dtop_cfg(Cfg)
+  catch
+    exit:already_started ->
+      case maps:size(Cfg) of
+        0 -> redbug_dtop:stop();
+        _ -> dtop_cfg(Cfg)
+      end
+  end.
+
+dtop_cfg(Cfg) ->
+  [redbug_dtop:sort(S) || (S = maps:get(sort, Cfg, "")) =/= ""],
+  [redbug_dtop:maxprcs(M) || (M = maps:get(max_procs, Cfg, "")) =/= ""].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API from erlang shell
@@ -494,8 +518,6 @@ mfaf(I) ->
 put_recs(Recs) ->
   [put({Name, length(Fields)}, Fields) || {Name, Fields} <- Recs].
 
-get_rec_fields(X) when not is_tuple(X) ->
-  [];
 get_rec_fields(Tuple) ->
   Rec = element(1, Tuple),
   case get({Rec, size(Tuple)-1}) of

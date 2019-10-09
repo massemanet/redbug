@@ -27,7 +27,11 @@
 -define(GET_STACK(_), erlang:get_stacktrace()).
 -endif.
 
-start() -> spawn(fun blocking_start/0).
+start() ->
+    case whereis(redbug_dtop) of
+        undefined -> spawn(fun blocking_start/0);
+        _ -> exit(already_started)
+    end.
 
 blocking_start() ->
     try loop(init())
@@ -38,7 +42,7 @@ stop() -> exit(whereis(redbug_dtop), kill).
 
 sort(Col) ->
     case lists:member(Col, sort_criteria()) of
-        true -> redbug_dtop ! {sort, Col};
+        true -> redbug_dtop ! {config, sort, Col};
         false -> {unknown_sort_criteria, sort_criteria()}
     end.
 
@@ -71,15 +75,27 @@ init() ->
     register(redbug_dtop, self()),
     LD0 = #ld{},
     LD1 = LD0#ld{constants = constants(LD0)},
+    erlang:send_after(LD1#ld.tick, self(), timeout),
     LD1#ld{cache = get_data(LD1)}.
 
 loop(LD) ->
-    timer:sleep(LD#ld.tick),
+    receive
+        timeout ->
+            erlang:send_after(LD#ld.tick, self(), timeout),
+            loop(printer(LD));
+        {config, Key, Val} ->
+            loop(config(LD, Key, Val))
+    end.
+
+config(LD, sort, Val) ->
+    LD#ld{sort = Val}.
+
+printer(LD) ->
     Data = get_data(LD),
     TS = erlang:timestamp(),
     DT = delta_time(TS, LD#ld.now),
     print(LD, differ(DT, LD#ld.cache, Data)),
-    loop(LD#ld{now = TS, cache = Data}).
+    LD#ld{now = TS, cache = Data}.
 
 get_data(LD) ->
     #data{sys = get_sys_data(LD),
@@ -243,8 +259,10 @@ ldiff(DT, [Old|Olds], [New|News]) when is_number(Old) andalso is_number(New)->
 ldiff(DT, [_|Olds], [New|News]) ->
     [New|ldiff(DT, Olds, News)].
 
-df(0, _, _) -> 0;
-df(DT, X, Y) -> (Y-X)/DT.
+df(DT, X, Y) ->
+    try (Y-X)/DT
+    catch _:_ -> 0
+    end.
 
 %%--------------------------------------------------------------------------
 %% calculate process toplist
