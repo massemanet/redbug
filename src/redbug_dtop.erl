@@ -550,11 +550,7 @@ timestr_to_sec(Str) ->
          heap_size,           %%   bytes
          total_heap_size}).   %%   bytes
 
-index_prc(pid) -> #prc.pid;
-index_prc(cpu) -> #prc.cpu;
-index_prc(memory) -> #prc.memory;
-index_prc(reductions) -> #prc.reductions;
-index_prc(message_queue_len) -> #prc.message_queue_len.
+index_prc(pid) -> #prc.pid.
 
 pull_prc_d(reductions, Prc) -> maybe_el(2, Prc#prc.reductions).
 
