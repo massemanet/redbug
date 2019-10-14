@@ -524,17 +524,25 @@ ts() -> erlang:timestamp().
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -include_lib("eunit/include/eunit.hrl").
 
-netload0_test() ->
+start_dist() ->
+  os:cmd("epmd -daemon"),
+  net_kernel:start([eunit_master, shortnames]).
+
+netload_test_() ->
+  [fun netload0/0, fun netload1/0, fun netload2/0].
+
+netload0() ->
     ?assertMatch(ok, assert_load(foo, bla)),
     ?assertMatch({module, redbug}, assert_load(nonode@nohost, redbug)).
 
-netload1_test() ->
+netload1() ->
   Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+  [start_dist() || node() =:= nonode@nohost],
   {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
   ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
   {ok, Slave} = ct_slave:stop(Slave).
 
-netload2_test() ->
+netload2() ->
   Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
   {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
   Ebin = filename:dirname(code:which(redbug)),
