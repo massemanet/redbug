@@ -186,6 +186,8 @@ start(Trc, {Tag, Val})                  -> start(Trc, [{Tag, Val}]);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the real start function!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+start(Trc, Props) when is_map(Props) ->
+  start(Trc, maps:to_list(Props));
 start(Trc, Props) when is_list(Props) ->
   case whereis(redbug) of
     undefined ->
