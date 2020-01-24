@@ -752,9 +752,11 @@ tcp_name(IP, Port) ->
          held_locks}).
 
 get_mnesia_data() ->
-    case mnesia:system_info(is_running) of
+    try mnesia:system_info(is_running) of
         no  -> {};
         yes -> mnesia()
+    catch
+        _:_ -> {}
     end.
 
 mnesia() ->
