@@ -473,7 +473,10 @@ mk_out(#cnf{print_re=RE, print_file=File}) ->
       end
   end.
 
-get_fd("") -> standard_io;
+get_fd(FD) when is_atom(FD); is_pid(FD) ->
+  FD;
+get_fd("") ->
+  standard_io;
 get_fd(FN) ->
   case file:open(FN, [write]) of
     {ok, FD} -> FD;
