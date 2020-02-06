@@ -96,7 +96,7 @@ print-related opts
 
     arity        (false)       print arity instead of argument list
     buffered     (no)          buffer messages till end of trace
-    print_pids   (false)       print pid instead of registered name
+    print_pid    (false)       print pid instead of registered name
     print_calls  (true)        print calls
     print_file   (standard_io) print to this file
     print_msec   (false)       print milliseconds on time stamps
@@ -125,13 +125,13 @@ EXAMPLES
     redbug done, timeout - 3
 
     %% As above, print pids
-    2> redbug:start("erlang:demonitor",[{msgs,1},print_pids]).
+    2> redbug:start("erlang:demonitor",[{msgs,1},print_pid]).
     {30,2}
     15:42:04 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21616>]}
     redbug done, msg_count - 1
 
     %% As above, print return value. The return value is a separate message.
-    3> redbug:start("erlang:demonitor->return",[{msgs,2},print_pids]).
+    3> redbug:start("erlang:demonitor->return",[{msgs,2},print_pid]).
     {30,2}
     15:43:22 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21677>]}
     15:43:22 <0.31.0> erlang:demonitor/1 -> true
@@ -140,7 +140,7 @@ EXAMPLES
     %% As above, also print the call stack. Note that not all functions in the
     %% call chain are on the stack, only functions we will return to (this is a
     %% consequence of tail call optimization.)
-    4> redbug:start("erlang:demonitor->return,stack",[{msgs,2},print_pids]).
+    4> redbug:start("erlang:demonitor->return,stack",[{msgs,2},print_pid]).
     {30,2}
     15:44:35 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21726>]}
       shell:eval_loop/3
@@ -159,7 +159,7 @@ EXAMPLES
     redbug done, timeout - 2
 
     %% As above, but also trace on sends from the shell process. note that in
-    %% this case the 'print_pids' opt would hide that there is a send to the
+    %% this case the 'print_pid' opt would hide that there is a send to the
     %% group server.
     7> redbug:start([send,'receive'],[{procs,[self()]}]).
     {1,0}
@@ -171,7 +171,7 @@ EXAMPLES
 
     %% Call trace with a function head match. Note that the first call to
     %% ets:tab2list/1 does not trigger the tracer.
-    8> redbug:start("ets:tab2list(inet_db)",[{msgs,2},print_pids]).
+    8> redbug:start("ets:tab2list(inet_db)",[{msgs,2},print_pid]).
     {30,1}
     9> ets:tab2list(ac_tab),ok.
     ok
