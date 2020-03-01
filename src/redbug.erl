@@ -8,6 +8,8 @@
 %%%-------------------------------------------------------------------
 -module(redbug).
 
+-export([main/1]).
+
 -export([help/0]).
 -export([start/1,start/2,start/3,start/4,start/5]).
 -export([stop/0]).
@@ -15,6 +17,15 @@
 -define(log(T),error_logger:info_report(
                  [process_info(self(),current_function),
                   {line,?LINE}|T])).
+
+%% erlang:get_stacktrace/0 was made obsolete in OTP21
+-ifdef('OTP_RELEASE'). %% implies >= OTP21
+-define(try_with_stack(F),
+        try {ok,F} catch __C:__R:__S -> {__C,__R,__S} end).
+-else.
+-define(try_with_stack(F),
+        try {ok,F} catch __C:__R -> {__C,__R,erlang:get_stacktrace()} end).
+-endif.
 
 %% the redbug server data structure
 %% most can be set in the input proplist
@@ -54,14 +65,177 @@
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Called as an escript
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+main(Args) ->
+  %% In the record definition, the default target node is node(),
+  %% but that doesn't make sense for our escript, so make it
+  %% 'undefined' and fail if it isn't filled in.
+  Cnf0 = #cnf{target = undefined, print_fun = mk_outer(#cnf{})},
+  Cnf1 =
+    try handle_args(Args, Cnf0)
+    catch throw:Error ->
+        io:fwrite("Error: ~s~n~n", [Error]),
+        help(escript),
+        halt_and_flush(1)
+    end,
+  Cnf = maybe_new_target(Cnf1),
+  start_distribution(Cnf),
+  case ?try_with_stack(init(Cnf)) of
+    {ok, _} ->
+      halt_and_flush(0);
+    {C,R,S} ->
+      io:fwrite("~p~n",[{C,R,S}]),
+      halt_and_flush(1)
+  end.
+
+halt_and_flush(Status) ->
+  %% As far as I can tell, this is the best (but still not perfect)
+  %% way to try to ensure that all output has been written before we
+  %% exit. See:
+  %% http://erlang.org/pipermail/erlang-questions/2011-April/057479.html
+  init:stop(Status),
+  timer:sleep(infinity).
+
+handle_args([], #cnf{target = undefined}) ->
+  throw("TargetNode not specified");
+handle_args([], #cnf{trc = []}) ->
+  throw("No trace patterns specified");
+handle_args([], Config = #cnf{}) ->
+  Config;
+
+handle_args(["-setcookie" | Rest], Config) ->
+  %% "-setcookie" is a synonym for "-cookie"
+  handle_args(["-cookie" | Rest], Config);
+handle_args(["-" ++ Option | Rest], Config) ->
+  %% Everything else maps to fields in the cnf record
+  Options = #{time => integer,
+              msgs => integer,
+              target => atom,
+              cookie => atom,
+              procs => term,
+              max_queue => integer,
+              max_msg_size => integer,
+              debug => boolean,
+              trace_child => boolean,
+              arity => boolean,
+              discard => boolean,
+              %% print-related
+              buffered => boolean,
+              print_calls => boolean,
+              print_file => string,
+              print_msec => boolean,
+              print_depth => integer,
+              print_re => string,
+              print_return => boolean,
+              %% trc file-related
+              file => string,
+              file_size => integer,
+              file_count => integer},
+  OptionAtom = list_to_atom(Option),
+  case maps:get(OptionAtom, Options, undefined) of
+    undefined ->
+      throw("Invalid option -" ++ Option);
+    Type ->
+      try to_option_value(Type, hd(Rest)) of
+        Parsed ->
+          Index = findex(OptionAtom, record_info(fields, cnf)) + 1,
+          NewCnf = setelement(Index, Config, Parsed),
+          handle_args(tl(Rest), NewCnf)
+      catch
+        error:badarg ->
+          throw("Invalid value for -" ++ Option ++ "; expected " ++ atom_to_list(Type))
+      end
+  end;
+handle_args([Node | Rest], Config = #cnf{target = undefined}) ->
+  %% The first non-option argument is the target node
+  handle_args(Rest, Config#cnf{target = to_atom(Node)});
+handle_args([Trc | Rest], Config = #cnf{trc = Trcs}) ->
+  %% Any following non-option arguments are trace patterns.
+  NewTrc =
+    case Trc of
+      "send" -> send;
+      "receive" -> 'receive';
+      _ -> Trc
+    end,
+  NewTrcs = Trcs ++ [NewTrc],
+  handle_args(Rest, Config#cnf{trc = NewTrcs}).
+
+start_distribution(Cnf = #cnf{target = Target}) ->
+  %% Check if the target node has a "long" or "short" name,
+  %% since we need to match that.
+  TargetS = atom_to_list(Target),
+  NameType =
+    case lists:dropwhile(fun(C) -> C =/= $@ end, TargetS) of
+      "@" ++ HostPart ->
+        case lists:member($., HostPart) of
+          true ->
+            longnames;
+          false ->
+            shortnames
+        end;
+      _ ->
+        %% No host part?  maybe_new_target/1 is going to turn it
+        %% into a short name.
+        shortnames
+    end,
+  NodeName = random_node_name(),
+  %% We want to start as a hidden node, but we can't affect that from
+  %% here.  rebar.config contains an entry to pass the "-hidden"
+  %% argument to escript.
+  {ok, _} = net_kernel:start([list_to_atom(NodeName), NameType]),
+  assert_cookie(Cnf).
+
+-ifdef(USE_NOW).
+random_node_name() ->
+  {A, B, C} = now(),
+  lists:concat(["redbug-", A, "-", B, "-", C]).
+-else.
+%% now/0 was deprecated in Erlang/OTP 18.0, which is the same release
+%% that added the rand module, so let's use that.
+random_node_name() ->
+  "redbug-" ++ integer_to_list(rand:uniform(1000000000)).
+-endif.
+
+to_option_value(integer, String) ->
+  list_to_integer(String);
+to_option_value(atom, String) ->
+  list_to_atom(String);
+to_option_value(term, String) ->
+  to_term(String);
+to_option_value(boolean, String) ->
+  case String of
+    "true" -> true;
+    "false" -> false;
+    _ -> error(badarg)
+  end;
+to_option_value(string, String) ->
+  String.
+
+to_term(Str) ->
+  {done, {ok, Toks, 1}, []} = erl_scan:tokens([], "["++Str++"]. ", 1),
+  case erl_parse:parse_term(Toks) of
+    {ok, [Term]} -> Term;
+    {ok, L} when is_list(L) -> L
+  end.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 help() ->
+  help(shell).
+
+help(Where) ->
   Text =
     ["redbug - the (sensibly) Restrictive Debugger"
-     ,""
-     ,"  redbug:start(Trc) -> start(Trc, [])."
-     ,"  redbug:start(Trc, Opts)."
-     ,""
+     ,""] ++
+    case Where of
+      shell ->
+        ["  redbug:start(Trc) -> start(Trc, [])."
+        ,"  redbug:start(Trc, Opts)."];
+      escript ->
+        ["  " ++ escript:script_name() ++ " [-Opt Value [...]] TargetNode Trc [Trc...]"
+        ,"  (you may need to quote trace patterns containing spaces etc)"]
+    end ++
+     [""
      ,"  redbug is a tool to interact with the Erlang trace facility."
      ,"  It will instruct the Erlang VM to generate so called "
      ,"  'trace messages' when certain events (such as a particular"
@@ -205,15 +379,6 @@ make_cnf([{Tag,Val}|Props],Cnf,Tags) ->
 findex(Tag,[])       -> throw({no_such_option,Tag});
 findex(Tag,[Tag|_])  -> 1;
 findex(Tag,[_|Tags]) -> findex(Tag,Tags)+1.
-
-%% erlang:get_stacktrace/0 was made obsolete in OTP21
--ifdef('OTP_RELEASE'). %% implies >= OTP21
--define(try_with_stack(F),
-        try {ok,F} catch __C:__R:__S -> {__C,__R,__S} end).
--else.
--define(try_with_stack(F),
-        try {ok,F} catch __C:__R -> {__C,__R,erlang:get_stacktrace()} end).
--endif.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the main redbug process
