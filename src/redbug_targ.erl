@@ -125,10 +125,9 @@ arities(M,F) ->
   [Ari || {Fun,Ari} <- functions(M),Fun =:= F].
 
 locals(M) ->
-  case code:which(M) of
-    preloaded -> [];
-    F ->
-      {ok,Bin,_FullName} = erl_prim_loader:get_file(F),
+  case code:get_object_code(M) of
+    error -> [];
+    {_,Bin,_} ->
       case beam_lib:chunks(Bin,[locals]) of
         {ok,{M,[{locals,Locals}]}} ->
           Locals;
@@ -147,6 +146,7 @@ maybe_load_rtp({{M,_,_},_MatchSpec,_Flags} = Rtp,O) ->
   try
     case code:which(M) of
       preloaded         -> ok;
+      cover_compiled    -> ok;
       non_existing      -> throw(non_existing_module);
       L when is_list(L) -> [c:l(M) || false == code:is_loaded(M)]
     end,
