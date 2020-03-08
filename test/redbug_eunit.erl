@@ -60,7 +60,7 @@ t_2_test() ->
                get_line_seg(Filename,2,2)),
   Lines = lists:seq(3,lines(Filename)),
   ?assertEqual([true],
-               lists:usort([is_mfa(get_line_seg(Filename,L,1))||L<-Lines])),
+               lists:usort([is_mfa(get_line_seg(Filename,L,2))||L<-Lines])),
   maybe_delete(Filename).
 
 t_3_test() ->
