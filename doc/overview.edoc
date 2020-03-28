@@ -1,29 +1,36 @@
-[![Build Status](https://travis-ci.org/massemanet/redbug.svg?branch=master)](https://travis-ci.org/massemanet/redbug)
+@author mats cronqvist {github.com/massemanet}
+@copyright 2004-2020 mats cronqvist
+@version 2.0.0
+@title redbug
+@doc
 
-NAME
 
-redbug - restricted debugging utility
-
-SYNOPSIS
+== SYNOPSIS ==
 
 start in non-blocking mode
 
-    redbug:start(Trc,[Opts]) -> {integer(NoOfProcs),integer(NoOfFuncs)} |
+```    redbug:start(Trc,[Opts]) -> {integer(NoOfProcs),integer(NoOfFuncs)} |
                                 {atom(ErrorType),term(ErrorReason)}
-start blocking mode
+'''
 
-    redbug:start(Trc,[Opts]) -> {atom(StopReason),list(TraceMessages)} |
+start in blocking mode
+
+```    redbug:start(Trc,[Opts]) -> {atom(StopReason),list(TraceMessages)} |
                                 {atom(ErrorType),term(ErrorReason)}
+'''
 
 stop
 
-    redbug:stop() -> stopped | not_started
+```    redbug:stop() -> stopped | not_started
+'''
+
 
 help
 
-    redbug:help() -> ok
+```    redbug:help() -> ok
+'''
 
-DESCRIPTION
+== DESCRIPTION ==
 
 redbug is a tool to interact with the Erlang trace facility. It will instruct
 the Erlang VM to generate so-called 'trace messages' when certain events
@@ -40,47 +47,53 @@ combined.  By default (i.e. if the 'file' opt is not given), messages are
 printed.
 
 
-Trc: trace type
+== Trace types ==
 
-    list('send'|'receive'|string(RTP))
+```    list('send'|'receive'|string(RTP))
+'''
 
-RTP:  restricted trace pattern. the RTP has the form:
 
-    "MFA when GUARDS -> ACTIONS"
+where RTP (Redbug Trace Pattern) has the form:
 
+```    "MFA when GUARDS -> ACTIONS"
+'''
 where MFA can be;
 
-    "mod", "mod:fun", "mod:fun/3" or "mod:fun('_',atom,X)"
+```    "mod", "mod:fun", "mod:fun/3" or "mod:fun('_',atom,X)"
+'''
 
 GUARD is something like;
 
-    "X==1" or "is_atom(A)"
-
+```    "X==1" or "is_atom(A)"
+'''
 and ACTION is;
 
-    "return" and/or "stack" (separated by ",")
-
+```    "return" and/or "stack" (separated by ",")
+'''
 So, an RTP looks something like this;
 
-    "ets:lookup(T,hostname) when is_integer(T) -> stack"
-
+```    "ets:lookup(T,hostname) when is_integer(T) -> stack"
+'''
 Note that bindings (like we're binding 'T' above) works as expected.
 So this RTP;
 
-    "maps:to_list(#{a:=T,c:=#{d:=T}})"
-
+```    "maps:to_list(#{a:=T,c:=#{d:=T}})"
+'''
 will not trigger on this call;
 
-```maps:to_list(#{a=>b,c=>#{d=>e,f=>g}}).```
-
+```   maps:to_list(#{a=>b,c=>#{d=>e,f=>g}}).
+'''
 but will trigger on this;
 
-```maps:to_list(#{a=>b,c=>#{d=>b,f=>g}}).```
+```    maps:to_list(#{a=>b,c=>#{d=>b,f=>g}}).
+'''
 
-Opts: list({Opt,Val})
+== Options ==
+
+```Opts: list({Opt,Val}) | #{Opt => Val}'''
 
 general opts:
-
+```
     time         (15000)       stop trace after this many milliseconds
     msgs         (10)          stop trace after this many messages
     target       (node())      node to trace on
@@ -91,9 +104,9 @@ general opts:
     max_queue    (5000)        exit if redbug-internal queue gets this long
     max_msg_size (50000)       exit if seeing a message bigger than this
     debug        (false)       bigger error messages
-
+'''
 print-related opts
-
+```
     arity        (false)       print arity instead of argument list
     buffered     (no)          buffer messages till end of trace
     print_pid    (false)       print pid instead of registered name
@@ -107,39 +120,44 @@ print-related opts
                                message. It can be a fun/1, (called as F(Msg),
                                return value is ignored), or a fun/2 (called as
                                F(Msg,Acc), return is next Acc)
-
+'''
 trc file related opts
 
+```
     file         (none)        use a trc file based on this name
     file_size    (1)           size of each trc file
     file_count   (8)           number of trc files
+'''
 
-EXAMPLES
-
-    %% Basic call trace
+== EXAMPLES ==
+Basic call trace
+```
     1> redbug:start("erlang:demonitor").
     {30,2}
     15:39:00 <{erlang,apply,2}> {erlang,demonitor,[#Ref<0.0.0.21493>]}
     15:39:00 <{erlang,apply,2}> {erlang,demonitor,[#Ref<0.0.0.21499>]}
     15:39:00 <{erlang,apply,2}> {erlang,demonitor,[#Ref<0.0.0.21500>]}
     redbug done, timeout - 3
-
-    %% As above, print pids
+'''
+As above, print pids
+```
     2> redbug:start("erlang:demonitor",[{msgs,1},print_pid]).
     {30,2}
     15:42:04 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21616>]}
     redbug done, msg_count - 1
-
-    %% As above, print return value. The return value is a separate message.
+'''
+As above, print return value. The return value is a separate message.
+```
     3> redbug:start("erlang:demonitor->return",[{msgs,2},print_pid]).
     {30,2}
     15:43:22 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21677>]}
     15:43:22 <0.31.0> erlang:demonitor/1 -> true
     redbug done, msg_count - 2
-
-    %% As above, also print the call stack. Note that not all functions in the
-    %% call chain are on the stack, only functions we will return to (this is a
-    %% consequence of tail call optimization.)
+'''
+As above, also print the call stack. Note that not all functions in the
+call chain are on the stack, only functions we will return to (this is a
+consequence of tail call optimization.)
+```
     4> redbug:start("erlang:demonitor->return,stack",[{msgs,2},print_pid]).
     {30,2}
     15:44:35 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21726>]}
@@ -150,17 +168,19 @@ EXAMPLES
       redbug:start/2
     15:44:35 <0.31.0> erlang:demonitor/1 -> true
     redbug done, msg_count - 2
-
-    %% Trace on messages that the shell process receives.
+'''
+Trace on messages that the shell process receives.
+```
     5> redbug:start('receive',[{procs,[self()]}]).
     {1,0}
     15:15:47 <{erlang,apply,2}> <<< {running,1,0}
     15:17:49 <{erlang,apply,2}> <<< timeout
     redbug done, timeout - 2
-
-    %% As above, but also trace on sends from the shell process. note that in
-    %% this case the 'print_pid' opt would hide that there is a send to the
-    %% group server.
+'''
+As above, but also trace on sends from the shell process. note that in
+this case the 'print_pid' opt would hide that there is a send to the
+group server.
+```
     7> redbug:start([send,'receive'],[{procs,[self()]}]).
     {1,0}
     15:36:36 <{erlang,apply,2}> <<< {running,1,0}
@@ -168,9 +188,10 @@ EXAMPLES
                                                         <0.24.0>,
                                                         {get_geometry,columns}}
     redbug done, timeout - 2
-
-    %% Call trace with a function head match. Note that the first call to
-    %% ets:tab2list/1 does not trigger the tracer.
+'''
+Call trace with a function head match. Note that the first call to
+ets:tab2list/1 does not trigger the tracer.
+```
     8> redbug:start("ets:tab2list(inet_db)",[{msgs,2},print_pid]).
     {30,1}
     9> ets:tab2list(ac_tab),ok.
@@ -179,12 +200,15 @@ EXAMPLES
     ok
     15:47:15 <0.31.0> {ets,tab2list,[inet_db]}
     redbug done, timeout - 1
-
-    %% As above, but use the 'blocking' opt. redbug:start/2 blocks until end of
-    %% trace, and returns the stop reason and a list of trace messages.
+'''
+As above, but use the 'blocking' opt. redbug:start/2 blocks until end of
+trace, and returns the stop reason and a list of trace messages.
+```
     10> spawn(fun()->receive after 2000->ets:tab2list(inet_db) end end).
     <0.540.0>
     11> redbug:start("ets:tab2list(inet_db)",[blocking]).
     {timeout,[{call,{{ets,tab2list,[inet_db]},<<>>},
                     {<0.540.0>,{erlang,apply,2}},
                     {15,50,43,776041}}]}
+'''
+@end
