@@ -94,6 +94,8 @@ is_record :
 
 Erlang code.
 
+%% @hidden
+
 to_atom(Str) ->
     list_to_atom(Str).
 

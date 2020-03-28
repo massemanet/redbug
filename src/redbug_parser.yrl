@@ -1,3 +1,5 @@
+Header "%% @hidden".
+
 Nonterminals
   rtp
   mfa module function args arity

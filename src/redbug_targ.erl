@@ -6,6 +6,9 @@
 %%%
 %%% Created : 18 Jan 2007 by Mats Cronqvist <locmacr@mwlx084>
 %%%-------------------------------------------------------------------
+
+%%% @hidden
+
 -module(redbug_targ).
 
 -export([start/2]).

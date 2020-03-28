@@ -1,3 +1,5 @@
+%% @hidden
+
 -module(redbug_compiler).
 -export([compile/1, generate/1, parse/1, scan/1]).
 

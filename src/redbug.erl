@@ -137,9 +137,22 @@ help() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% dtop facade
 
+%% @doc
+%% starts and stops dtop.
+%% @end
 dtop() ->
   dtop(#{}).
 
+%% @doc
+%% `Cfg' is a map. The allowd tags are `max_procs' and `sort'.
+%%
+%% If the number of processes is larger than `max_procs', dtop will
+%% not print any process info, just the header. This is to avoid
+%% oveloading the VM. It defaults to 1500.
+%%
+%% `sort' can be `msgs', `cpu', or `mem', It defaults to `cpu'.
+%%
+%% @end
 dtop(Cfg) ->
   try
     redbug_dtop:start(),
@@ -159,6 +172,9 @@ dtop_cfg(Cfg) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API from erlang shell
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @doc
+%% stops a trace.
+%% @end
 stop() ->
   case whereis(redbug) of
     undefined -> not_started;
@@ -166,18 +182,26 @@ stop() ->
   end.
 
 %% a bunch of aliases for start/2
+%% @deprecated use start/2
 start(Trc) ->
   start(Trc, []).
 
+%% @deprecated use start/2
 start(T, M, Trc) ->
   start(Trc, [{time, T}, {msgs, M}]).
 
+%% @deprecated use start/2
 start(T, M, Trc, P) ->
   start(Trc, [{time, T}, {msgs, M}, {procs, P}]).
 
+%% @deprecated use start/2
 start(T, M, Trc, P, N) ->
   start(Trc, [{time, T}, {msgs, M}, {procs, P}, {target, N}]).
 
+%% @spec start(RTPs::list(), Opts::map()) -> {Procs::integer(), Functions::integer()}
+%% @doc
+%% starts a trace. See the Overview.
+%% @end
 start(M, F) when is_atom(M), is_atom(F) -> start({M, F});
 start(send, Props)                      -> start([send], Props);
 start('receive', Props)                 -> start(['receive'], Props);

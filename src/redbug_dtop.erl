@@ -7,6 +7,9 @@
 %%% Created : 18 Oct 2005 by Mats Cronqvist <locmacr@mwlx084>
 %%% Description : top-like client for beam
 %%%-------------------------------------------------------------------
+
+%% @private
+
 -module(redbug_dtop).
 -author('Mats Cronqvist').
 
