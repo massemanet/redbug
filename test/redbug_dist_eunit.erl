@@ -10,14 +10,14 @@ x_test_() ->
          [{call, {{erlang, nodes, []}, <<>>}, _, _}|_]},
         runner(
           mk_tracer("erlang:nodes/0", [{time, 3000}]),
-          mk_action(100, 100, "erlang:nodes()"))),
+          mk_action(100, 100, "erlang:nodes(). "))),
 
      ?_assertMatch(
         {timeout,
          [{call, {{erlang, nodes, []}, <<>>}, _, _}|_]},
         runner(
           mk_tracer("erlang:nodes/0", [{time, 300}]),
-          mk_action(100, 100, "erlang:nodes()"))),
+          mk_action(100, 100, "erlang:nodes(). "))),
 
      ?_assertMatch(
         {timeout,
@@ -29,7 +29,7 @@ x_test_() ->
             ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",
              "file:read_file_info->return"],
             [{time, 300}, {records, file}]),
-          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)"))),
+          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla). "))),
 
      ?_assertMatch(
         {timeout,
@@ -40,7 +40,7 @@ x_test_() ->
             ["erlang:setelement(_, {_, file#file_info{type=regular}}, _)",
              "file:read_file_info->return"],
             [{time, 300}, {records, file}]),
-          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)"))),
+          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla). "))),
 
      ?_assertMatch(
         {timeout,
@@ -52,7 +52,7 @@ x_test_() ->
             ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",
              "file:read_file_info->return"],
             [{time, 300}]),
-          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla)")))].
+          mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla). ")))].
 
 mk_tracer(RTP, Opts) ->
     fun(Slave) ->
@@ -61,23 +61,32 @@ mk_tracer(RTP, Opts) ->
     end.
 
 mk_action(PreTO, PostTO, Str) ->
+    {done, {ok, Ts, 0}, []} = erl_scan:tokens([], Str, 0),
+    {ok, Es} = erl_parse:parse_exprs(Ts),
+    Bs = erl_eval:new_bindings(),
     fun(Slave) ->
         timer:sleep(PreTO),
-        rpc:call(Slave, erl_eval, eval_str, [Str++". "]),
+        rpc:call(Slave, erl_eval, exprs, [Es, Bs]),
         timer:sleep(PostTO)
     end.
 
 runner(Tracer, Action) ->
     os:cmd("epmd -daemon"),
-    net_kernel:start([eunit_master, shortnames]),
-    Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
     [net_kernel:start([eunit_master, shortnames]) || node() =:= nonode@nohost],
-    {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
+    Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+    SlaveName = eunit_inferior,
+    {ok, Slave} = ct_slave:start(SlaveName, Opts),
     {Pid, _} = spawn_monitor(fun() -> Tracer(Slave) end),
     Action(Slave),
-    {ok, Slave} = ct_slave:stop(Slave),
+    stop_slave(Slave, SlaveName),
     Pid ! {pid, self()},
     receive {res, X} -> X after 1000 -> timeout end.
+
+-ifdef(OTP_RELEASE).
+stop_slave(Slave, _) -> {ok, Slave} = ct_slave:stop(Slave).
+-else.
+stop_slave(Slave, SlaveName) -> {ok, Slave} = ct_slave:stop(SlaveName).
+-endif.
 
 %% mk_interpreted_fun(Str) ->
 %%     {ok, Ts, _} = erl_scan:string(Str),

@@ -368,6 +368,7 @@ mk_blocker() ->
      ({call_count, {_, false}, _, _}, A) -> A;
      ({call_count, {_, 0}, _, _}, A)     -> A;
      ({meta, {recs, Recs}, _, _}, A)     -> put_recs(Recs), A;
+     ({meta, stop, _, _}, 0)             -> [];
      ({meta, stop, _, _}, A)             -> lists:reverse(A);
      (X, 0)                              -> [expand(X)];
      (X, A)                              -> [expand(X)|A]

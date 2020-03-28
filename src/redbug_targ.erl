@@ -532,21 +532,30 @@ netload_test_() ->
   [fun netload0/0, fun netload1/0, fun netload2/0].
 
 netload0() ->
-    ?assertMatch(ok, assert_load(foo, bla)),
-    ?assertMatch({module, redbug}, assert_load(nonode@nohost, redbug)).
+  ?assertMatch(ok, assert_load(foo, bla)),
+  ?assertMatch({module, redbug}, assert_load(nonode@nohost, redbug)).
 
 netload1() ->
-  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
   [start_dist() || node() =:= nonode@nohost],
-  {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
+  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+  SlaveName = eunit_inferior,
+  {ok, Slave} = ct_slave:start(SlaveName, Opts),
   ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
-  {ok, Slave} = ct_slave:stop(Slave).
+  stop_slave(Slave, SlaveName).
 
 netload2() ->
+  [start_dist() || node() =:= nonode@nohost],
   Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
-  {ok, Slave} = ct_slave:start(eunit_inferior, Opts),
+  SlaveName = eunit_inferior,
+  {ok, Slave} = ct_slave:start(SlaveName, Opts),
   Ebin = filename:dirname(code:which(redbug)),
   Test = re:replace(re:replace(Ebin, "default", "test"), "ebin", "test"),
   code:add_patha(unicode:characters_to_list(Test)),
   ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
-  {ok, Slave} = ct_slave:stop(Slave).
+  stop_slave(Slave, SlaveName).
+
+-ifdef(OTP_RELEASE).
+stop_slave(Slave, _) -> {ok, Slave} = ct_slave:stop(Slave).
+-else.
+stop_slave(Slave, SlaveName) -> {ok, Slave} = ct_slave:stop(SlaveName).
+-endif.
