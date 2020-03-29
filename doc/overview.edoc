@@ -4,38 +4,6 @@
 @title redbug
 @doc
 
-== SYNOPSIS ==
-
-start in non-blocking mode
-
-```
-redbug:start(Trc,Opts) -> {integer(NoOfProcs),integer(NoOfFuncs)} |
-                          {atom(ErrorType),term(ErrorReason)}
-'''
-
-start in blocking mode
-
-```
-redbug:start(Trc,Opts) -> {atom(StopReason),list(TraceMessages)} |
-                          {atom(ErrorType),term(ErrorReason)}
-'''
-
-stop a trace
-
-```    redbug:stop() -> stopped | not_started
-'''
-
-
-start/stop dtop
-```    redbug:dtop() -> [] | true
-'''
-
-
-print help
-
-```    redbug:help() -> ok
-'''
-
 == DESCRIPTION ==
 
 redbug is a tool to interact with the Erlang trace facility. It will instruct
@@ -53,92 +21,6 @@ less stress on the system, but there is no way to count the messages
 special tools (such as 'bread'). Printing and trc files cannot be
 combined.  By default (i.e. if the 'file' opt is not given), messages
 are printed.
-
-
-== Trace types ==
-
-```    list('send'|'receive'|string(RTP))
-'''
-
-
-where RTP (Redbug Trace Pattern) has the form:
-
-```    "MFA when GUARDS -> ACTIONS"
-'''
-where MFA can be;
-
-```    "mod", "mod:fun", "mod:fun/3" or "mod:fun('_',atom,X)"
-'''
-
-GUARD is something like;
-
-```    "X==1" or "is_atom(A)"
-'''
-and ACTION is;
-
-```    "return" and/or "stack" (separated by ",")
-'''
-So, an RTP looks something like this;
-
-```    "ets:lookup(T,hostname) when is_integer(T) -> stack"
-'''
-Note that bindings (like we're binding 'T' above) works as expected.
-So this RTP;
-
-```    "maps:to_list(#{a:=T,c:=#{d:=T}})"
-'''
-will not trigger on this call;
-
-```   maps:to_list(#{a=>b,c=>#{d=>e,f=>g}}).
-'''
-but will trigger on this;
-
-```    maps:to_list(#{a=>b,c=>#{d=>b,f=>g}}).
-'''
-
-== Options ==
-
-```Opts: list({Opt,Val}) | #{Opt => Val}'''
-
-general opts:
-
-```
-    time         (15000)       stop trace after this many milliseconds
-    msgs         (10)          stop trace after this many messages
-    target       (node())      node to trace on
-    cookie       ('')          target node cookie
-    blocking     (false)       block start/2, return a list of messages
-    procs        (all)         atom(all|new|running) | list(Proc)
-                               where Proc is pid() | atom(RegName) | {pid,I2,I3}
-    max_queue    (5000)        exit if redbug-internal queue gets this long
-    max_msg_size (50000)       exit if seeing a message bigger than this
-    debug        (false)       bigger error messages
-'''
-
-print-related opts
-
-```
-    arity        (false)       print arity instead of argument list
-    buffered     (no)          buffer messages till end of trace
-    print_pid    (false)       print pid instead of registered name
-    print_calls  (true)        print calls
-    print_file   (standard_io) print to this file
-    print_msec   (false)       print milliseconds on time stamps
-    print_depth  (999999)      formatting depth for "~P"
-    print_re     ("")          print only strings that match this regexp
-    print_return (true)        print return value
-    print_fun    ('')          custom print fun. gets called once for each trace
-                               message. It can be a fun/1, (called as F(Msg),
-                               return value is ignored), or a fun/2 (called as
-                               F(Msg,Acc), return is next Acc)
-'''
-trc file related opts
-
-```
-    file         (none)        use a trc file based on this name
-    file_size    (1)           size of each trc file
-    file_count   (8)           number of trc files
-'''
 
 == RECORDS ==
 
@@ -315,4 +197,45 @@ trace, and returns the stop reason and a list of trace messages.
                 {<0.273.0>,dead},
                 {18,42,17,555959}}]}
 '''
+
+Read record definition from `file'
+
+```
+12> redbug:start("file:read_file_info->return",#{records=>[file]}), file:read_file_info("/").
+
+% 14:43:06 <0.205.0>({erlang,apply,2})
+% file:read_file_info("/")
+
+% 14:43:06 <0.205.0>({erlang,apply,2})
+% file:read_file_info/1 -> {ok,{file_info,
+                                   [{size,4096},
+                                    {type,directory},
+                                    {access,read},
+                                    {atime,{{2020,3,28},{11,51,5}}},
+                                    {mtime,{{2020,2,2},{11,42,36}}},
+                                    {ctime,{{2020,2,2},{11,42,36}}},
+                                    {mode,16877},
+                                    {links,22},
+                                    {major_device,64769},
+                                    {minor_device,0},
+                                    {inode,2},
+                                    {uid,0},
+                                    {gid,0}]}}
+redbug done, timeout - 1
+'''
+
+Use the `module#record' syntax to specify a match.
+
+```
+13> redbug:start("erlang:tuple_size(file#file_info{size = 666})->return",[arity]).
+14> rr(file),tuple_size(#file_info{size=666}).
+
+% 14:51:25 <0.205.0>({erlang,apply,2})
+% erlang:tuple_size/1
+
+% 14:51:25 <0.205.0>({erlang,apply,2})
+% erlang:tuple_size/1 -> 14
+redbug done, timeout - 1
+'''
+
 @end

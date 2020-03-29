@@ -28,7 +28,7 @@ x_test_() ->
           mk_tracer(
             ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",
              "file:read_file_info->return"],
-            [{time, 300}, {records, file}]),
+            [{time, 300}, {records, [file]}]),
           mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla). "))),
 
      ?_assertMatch(
