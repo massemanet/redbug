@@ -1,5 +1,11 @@
-.\#*
-\#*
+*.crashdump
 *~
+.\#*
 /_build/
 /doc/
+\#*
+erl_crash.dump
+foo*.trc
+redbug.txt
+src/redbug_lexer.erl
+src/redbug_parser.erl

@@ -1,34 +1,8 @@
 @author mats cronqvist {github.com/massemanet}
 @copyright 2004-2020 mats cronqvist
-@version 1.2.2
+@version 2.0.0
 @title redbug
 @doc
-
-
-== SYNOPSIS ==
-
-start in non-blocking mode
-
-```    redbug:start(Trc,[Opts]) -> {integer(NoOfProcs),integer(NoOfFuncs)} |
-                                {atom(ErrorType),term(ErrorReason)}
-'''
-
-start in blocking mode
-
-```    redbug:start(Trc,[Opts]) -> {atom(StopReason),list(TraceMessages)} |
-                                {atom(ErrorType),term(ErrorReason)}
-'''
-
-stop
-
-```    redbug:stop() -> stopped | not_started
-'''
-
-
-help
-
-```    redbug:help() -> ok
-'''
 
 == DESCRIPTION ==
 
@@ -38,177 +12,230 @@ the Erlang VM to generate so-called 'trace messages' when certain events
 the tracing functionality, and exits if it feels overloaded, e.g. if it gets
 flooded by trace messages. It runs in the background, collecting trace
 messages, until it reaches one of its termination criteria (number of
-messages/file size or elapsed time). The trace messages are either printed
-(i.e. human readable) to a file or to the screen; or written to a trc file.
-Using a trc file puts less stress on the system, but there is no way to count
-the messages (so the 'msgs' opt is ignored), and the files can only be read
-by special tools (such as 'bread'). Printing and trc files cannot be
-combined.  By default (i.e. if the 'file' opt is not given), messages are
-printed.
+messages/file size or elapsed time).
 
+The trace messages are either printed (i.e. human readable) to a file
+or to the screen; or written to a trc file.  Using a trc file puts
+less stress on the system, but there is no way to count the messages
+(so the 'msgs' opt is ignored), and the files can only be read by
+special tools (such as 'bread'). Printing and trc files cannot be
+combined.  By default (i.e. if the 'file' opt is not given), messages
+are printed.
 
-== Trace types ==
+== RECORDS ==
 
-```    list('send'|'receive'|string(RTP))
+Records are not like the other Erlang collection types
+(lists, maps, and tuples) in that they are a compile time construct
+(they are turned into tuples before compilation).
+
+Hence, record names are not globally unique, but are unique per
+module. redbug deals with this by allowing the syntax "module#record"
+to specify a record. E.g. like
+```redbug:start("m:f(m#rec{a = b})").
 '''
 
+In order to print record field names in return values on has to tell
+redbug in which modules to look for records. Use the `{records,
+[Module]}' option.
 
-where RTP (Redbug Trace Pattern) has the form:
+== DTOP ==
 
-```    "MFA when GUARDS -> ACTIONS"
-'''
-where MFA can be;
-
-```    "mod", "mod:fun", "mod:fun/3" or "mod:fun('_',atom,X)"
-'''
-
-GUARD is something like;
-
-```    "X==1" or "is_atom(A)"
-'''
-and ACTION is;
-
-```    "return" and/or "stack" (separated by ",")
-'''
-So, an RTP looks something like this;
-
-```    "ets:lookup(T,hostname) when is_integer(T) -> stack"
-'''
-Note that bindings (like we're binding 'T' above) works as expected.
-So this RTP;
-
-```    "maps:to_list(#{a:=T,c:=#{d:=T}})"
-'''
-will not trigger on this call;
-
-```   maps:to_list(#{a=>b,c=>#{d=>e,f=>g}}).
-'''
-but will trigger on this;
-
-```    maps:to_list(#{a=>b,c=>#{d=>b,f=>g}}).
-'''
-
-== Options ==
-
-```Opts: list({Opt,Val}) | #{Opt => Val}'''
-
-general opts:
-```
-    time         (15000)       stop trace after this many milliseconds
-    msgs         (10)          stop trace after this many messages
-    target       (node())      node to trace on
-    cookie       ('')          target node cookie
-    blocking     (false)       block start/2, return a list of messages
-    procs        (all)         atom(all|new|running) | list(Proc)
-                               where Proc is pid() | atom(RegName) | {pid,I2,I3}
-    max_queue    (5000)        exit if redbug-internal queue gets this long
-    max_msg_size (50000)       exit if seeing a message bigger than this
-    debug        (false)       bigger error messages
-'''
-print-related opts
-```
-    arity        (false)       print arity instead of argument list
-    buffered     (no)          buffer messages till end of trace
-    print_pid    (false)       print pid instead of registered name
-    print_calls  (true)        print calls
-    print_file   (standard_io) print to this file
-    print_msec   (false)       print milliseconds on time stamps
-    print_depth  (999999)      formatting depth for "~P"
-    print_re     ("")          print only strings that match this regexp
-    print_return (true)        print return value
-    print_fun    ('')          custom print fun. gets called once for each trace
-                               message. It can be a fun/1, (called as F(Msg),
-                               return value is ignored), or a fun/2 (called as
-                               F(Msg,Acc), return is next Acc)
-'''
-trc file related opts
+dtop gives a per-process view of the system. It is simpilar to `top'
+in that it pronts a screenful of info every N (default 2) seconds.
+Each screenful consists of a header and a line pre process.
 
 ```
-    file         (none)        use a trc file based on this name
-    file_size    (1)           size of each trc file
-    file_count   (8)           number of trc files
+-------------------------------------------------------------------------------
+nonode@nohost      size: 22.3M(2.6G), cpu%: 2(13), procs: 71, runq: 0, 18:21:19
+memory:      proc    5.9M, atom  442.6k, bin    1.0M, code    7.4M, ets  794.4k
+
+pid            name                         current             msgq    mem cpu
+<0.10.0>       erl_prim_loader              erl_prim_loader:l      0   1.1M   1
+<0.194.0>      redbug_dtop                  redbug_dtop:prc_i      0 111.6k   1
+<0.50.0>       code_server                  code_server:loop/      0 176.3k   0
 '''
+
+== PRINTER ==
+
+By default, the printer function writes a header line that looks like this;
+
+`% 18:38:50 <0.188.0>({erlang,apply,2})'
+
+A timestamp, the pid, and the process name; the registered name if it
+exists, otherwise the inti function of the process.
+
+A function call is printed like this;
+
+`% erlang:demonitor(#Ref<0.2419348116.2832203778.13012>)'
+
+and a return from a funtion like this;
+
+`% erlang:demonitor/1 -> true'
+
+i.e. module:function/arity -> return value
 
 == EXAMPLES ==
+
 Basic call trace
+
 ```
-    1> redbug:start("erlang:demonitor").
-    {30,2}
-    15:39:00 <{erlang,apply,2}> {erlang,demonitor,[#Ref<0.0.0.21493>]}
-    15:39:00 <{erlang,apply,2}> {erlang,demonitor,[#Ref<0.0.0.21499>]}
-    15:39:00 <{erlang,apply,2}> {erlang,demonitor,[#Ref<0.0.0.21500>]}
-    redbug done, timeout - 3
+1> redbug:start("erlang:demonitor").
+{75,2}
+
+% 18:27:21 <0.188.0>({erlang,apply,2})
+% erlang:demonitor(#Ref<0.2419348116.2832203778.12948>)
+
+% 18:27:21 <0.188.0>({erlang,apply,2})
+% erlang:demonitor(#Ref<0.2419348116.2832203777.10938>, [flush])
+
+% 18:27:21 <0.188.0>({erlang,apply,2})
+% erlang:demonitor(#Ref<0.2419348116.2832203777.10939>, [flush])
+
+% 18:27:21 <0.188.0>({erlang,apply,2})
+% erlang:demonitor(#Ref<0.2419348116.2832203777.10940>, [flush])
+redbug done, timeout - 4
 '''
-As above, print pids
-```
-    2> redbug:start("erlang:demonitor",[{msgs,1},print_pid]).
-    {30,2}
-    15:42:04 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21616>]}
-    redbug done, msg_count - 1
-'''
+
 As above, print return value. The return value is a separate message.
+
 ```
-    3> redbug:start("erlang:demonitor->return",[{msgs,2},print_pid]).
-    {30,2}
-    15:43:22 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21677>]}
-    15:43:22 <0.31.0> erlang:demonitor/1 -> true
-    redbug done, msg_count - 2
+2> redbug:start("erlang:demonitor->return",[{msgs,2}]).
+{75,2}
+
+% 18:31:15 <0.188.0>({erlang,apply,2})
+% erlang:demonitor(#Ref<0.2419348116.2832203780.10535>)
+
+% 18:31:15 <0.188.0>({erlang,apply,2})
+% erlang:demonitor/1 -> true
+redbug done, msg_count - 1
 '''
+
 As above, also print the call stack. Note that not all functions in the
 call chain are on the stack, only functions we will return to (this is a
 consequence of tail call optimization.)
+
 ```
-    4> redbug:start("erlang:demonitor->return,stack",[{msgs,2},print_pid]).
-    {30,2}
-    15:44:35 <0.31.0> {erlang,demonitor,[#Ref<0.0.0.21726>]}
-      shell:eval_loop/3
-      shell:eval_exprs/7
-      shell:exprs/7
-      erl_eval:do_apply/6
-      redbug:start/2
-    15:44:35 <0.31.0> erlang:demonitor/1 -> true
-    redbug done, msg_count - 2
+4> redbug:start("erlang:demonitor->return,stack",[{msgs,2}]).
+{75,2}
+
+% 18:32:54 <0.188.0>({erlang,apply,2})
+% erlang:demonitor(#Ref<0.2419348116.2832203778.13012>)
+%   redbug:block_a_little/0 
+%   redbug:start/2 
+%   erl_eval:do_apply/6 
+%   shell:exprs/7 
+%   shell:eval_exprs/7 
+%   shell:eval_loop/3 
+
+% 18:32:54 <0.188.0>({erlang,apply,2})
+% erlang:demonitor/1 -> true
+redbug done, msg_count - 1
 '''
+
 Trace on messages that the shell process receives.
+
 ```
-    5> redbug:start('receive',[{procs,[self()]}]).
-    {1,0}
-    15:15:47 <{erlang,apply,2}> <<< {running,1,0}
-    15:17:49 <{erlang,apply,2}> <<< timeout
-    redbug done, timeout - 2
+5> redbug:start('receive',[{procs,[self()]}]).
+{1,0}
+
+% 18:35:16 <0.188.0>({erlang,apply,2})
+% <<< {running,1,0}
+
+% 18:35:16 <0.188.0>({erlang,apply,2})
+% <<< {io_reply,#Ref<0.2419348116.2832203778.13028>,150}
+
+% 18:35:16 <0.188.0>({erlang,apply,2})
+% <<< {io_reply,#Ref<0.2419348116.2832203778.13029>,
+                [{expand_fun,#Fun<group.0.90280613>},
+                 {echo,true},
+                 {binary,false},
+                 {encoding,unicode}]}
+
+% 18:35:16 <0.188.0>({erlang,apply,2})
+% <<< {io_reply,#Ref<0.2419348116.2832203778.13030>,ok}
 '''
+
 As above, but also trace on sends from the shell process. note that in
 this case the 'print_pid' opt would hide that there is a send to the
 group server.
+
 ```
-    7> redbug:start([send,'receive'],[{procs,[self()]}]).
-    {1,0}
-    15:36:36 <{erlang,apply,2}> <<< {running,1,0}
-    15:36:36 <{erlang,apply,2}> <{group,server,3}> <<< {io_request,<0.31.0>,
-                                                        <0.24.0>,
-                                                        {get_geometry,columns}}
-    redbug done, timeout - 2
+7> redbug:start([send,'receive'],[{procs,[self()]}]).
+{1,0}
+
+% 18:36:25 <0.188.0>({erlang,apply,2})
+% <<< {running,1,0}
+
+% 18:36:25 <0.188.0>({erlang,apply,2})
+% <0.186.0>({group,server,3}) <<< {io_request,<0.188.0>,
+                                      #Ref<0.2419348116.2832203777.10998>,
+                                      {get_geometry,columns}}
+redbug done, timeout - 2
 '''
+
 Call trace with a function head match. Note that the first call to
 ets:tab2list/1 does not trigger the tracer.
+
 ```
-    8> redbug:start("ets:tab2list(inet_db)",[{msgs,2},print_pid]).
-    {30,1}
-    9> ets:tab2list(ac_tab),ok.
-    ok
-    10> ets:tab2list(inet_db),ok.
-    ok
-    15:47:15 <0.31.0> {ets,tab2list,[inet_db]}
-    redbug done, timeout - 1
+8> redbug:start("ets:tab2list(inet_db)",[{msgs,2},print_pid]).
+{30,1}
+9> ets:tab2list(ac_tab),ok.
+ok
+10> ets:tab2list(inet_db),ok.
+ok
+% 18:38:50 <0.188.0>({erlang,apply,2})
+% ets:tab2list(inet_db)
+redbug done, timeout - 1
 '''
+
 As above, but use the 'blocking' opt. redbug:start/2 blocks until end of
 trace, and returns the stop reason and a list of trace messages.
+
 ```
-    10> spawn(fun()->receive after 2000->ets:tab2list(inet_db) end end).
-    <0.540.0>
-    11> redbug:start("ets:tab2list(inet_db)",[blocking]).
-    {timeout,[{call,{{ets,tab2list,[inet_db]},<<>>},
-                    {<0.540.0>,{erlang,apply,2}},
-                    {15,50,43,776041}}]}
+11> spawn(fun()->receive after 2000->ets:tab2list(inet_db) end end),redbug:start("ets:tab2list(inet_db)",[blocking,{time,3000}]).
+{timeout,[{call,{{ets,tab2list,[inet_db]},<<>>},
+                {<0.273.0>,dead},
+                {18,42,17,555959}}]}
 '''
+
+Read record definition from `file'
+
+```
+12> redbug:start("file:read_file_info->return",#{records=>[file]}), file:read_file_info("/").
+
+% 14:43:06 <0.205.0>({erlang,apply,2})
+% file:read_file_info("/")
+
+% 14:43:06 <0.205.0>({erlang,apply,2})
+% file:read_file_info/1 -> {ok,{file_info,
+                                   [{size,4096},
+                                    {type,directory},
+                                    {access,read},
+                                    {atime,{{2020,3,28},{11,51,5}}},
+                                    {mtime,{{2020,2,2},{11,42,36}}},
+                                    {ctime,{{2020,2,2},{11,42,36}}},
+                                    {mode,16877},
+                                    {links,22},
+                                    {major_device,64769},
+                                    {minor_device,0},
+                                    {inode,2},
+                                    {uid,0},
+                                    {gid,0}]}}
+redbug done, timeout - 1
+'''
+
+Use the `module#record' syntax to specify a match.
+
+```
+13> redbug:start("erlang:tuple_size(file#file_info{size = 666})->return",[arity]).
+14> rr(file),tuple_size(#file_info{size=666}).
+
+% 14:51:25 <0.205.0>({erlang,apply,2})
+% erlang:tuple_size/1
+
+% 14:51:25 <0.205.0>({erlang,apply,2})
+% erlang:tuple_size/1 -> 14
+redbug done, timeout - 1
+'''
+
 @end

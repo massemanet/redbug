@@ -2,67 +2,116 @@
 %% @doc
 %% @end
 
--module(redbug_msc_eunit).
+-module(redbug_compiler_eunit).
 
 -include_lib("eunit/include/eunit.hrl").
 
-unit(Str) ->
-  try redbug_msc:transform(Str)
-  catch _:R -> R
-  end.
+-record(rec,
+        {f1,
+         f2        :: integer(),
+         f3 = '_',
+         f4 = '_'  :: integer()}).
 
-msc_test_() ->
+x_test_() ->
   [?_assertEqual(
-      {syntax_error,{bad_type,{float,0.1}}},
+      {syntax_error,"at: ."},
       unit("f:c(0.1)")),
 
    ?_assertEqual(
-      {syntax_error,{parse_error,"syntax error before: '<'"}},
-      unit("f:c(<0.0.1>)")),
+      {syntax_error,"syntax error before: '#'"},
+      unit("f:c(#Port<0.0.1>)")),
 
    ?_assertEqual(
-      {syntax_error,{illegal_input,1}},
+      {syntax_error,"at: ."},
+      unit("f:c(#port<0.0>)")),
+
+   ?_assertEqual(
+      {syntax_error,"bad input"},
       unit(1)),
 
    ?_assertEqual(
-      {syntax_error,{unbound_var,'Y'}},
+      {syntax_error,"unbound variable: 'Y'"},
       unit("a:b(X,y)when is_atom(Y)")),
 
    ?_assertEqual(
-      {syntax_error,{parse_error,[{call,1,{atom,1,x},[{atom,1,s}]}]}},
+      {syntax_error,"syntax error before: '('"},
       unit("x(s)")),
 
    ?_assertEqual(
-      {syntax_error,{parse_error,[{op,1,'-',{atom,1,x},{atom,1,s}}]}},
+      {syntax_error,"syntax error before: '-'"},
       unit("x-s")),
 
    ?_assertEqual(
-      {syntax_error,{unknown_action,"bla"}},
+      {syntax_error,"illegal action: bla"},
       unit("x:y(z)->bla")),
 
    ?_assertEqual(
-      {syntax_error,{parse_error,"syntax error before: hen"}},
+      {syntax_error,"syntax error before: hen"},
       unit("x:c(Aw)hen [A,A] == [A]++[A]")),
 
    ?_assertEqual(
-      {syntax_error,{parse_error,"syntax error before: '.'"}},
+      {syntax_error,"syntax error before: "},
       unit("x:c(Aw)when [")),
 
    ?_assertEqual(
-      {syntax_error,{bad_binary,{unbound_var,'_'}}},
+      {syntax_error,"malformed_binary: <<1:3,_:5>>"},
       unit("erlang:binary_to_list(<<1:3,_:5>>)")),
 
    ?_assertEqual(
-      {syntax_error,{illegal_plusplus,{{var,1,'A'},{var,1,'B'}}}},
+      {syntax_error,"syntax error before: '++'"},
       unit("m:f(A++B)")),
 
    ?_assertEqual(
-      {syntax_error,{scan_error,"m'"}},
+      {syntax_error,"at: '"},
       unit("m'")),
 
    ?_assertEqual(
-      {syntax_error,{scan_error,"'"}},
+      {syntax_error,"at: '"},
       unit("m:f when '")),
+
+   ?_assertEqual(
+      {syntax_error,"syntax error before: \"X\""},
+      unit("a:b(X,Y)when is_record(X,rec) and (Y==0)")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: '#'"},
+     unit("a:b([222#22|C])")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: '#'"},
+     unit("a:b([1#223|C])")),
+
+   ?_assertEqual(
+     {syntax_error,"no such module: fake"},
+     unit("a:b(2,fake#rec{f1=0,f2=regular})")),
+
+   ?_assertEqual(
+     {syntax_error,"no such record: fake"},
+     unit("c:d(2,redbug_compiler_eunit#fake{f1=0,f2=regular})")),
+
+   ?_assertEqual(
+     {syntax_error,"no such field: f99"},
+     unit("e:f(2,redbug_compiler_eunit#rec{f99=0})")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: '='"},
+     unit("e:f(2,redbug_compiler_eunit#rec{=0})")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: \"W\""},
+     unit("e:f(2,redbug_compiler_eunit#rec{W=0})")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: ')'"},
+      unit("x:c(S)when (S==x;)(S==y)")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: ')'"},
+      unit("x:c(S)when (S==x;)S==y")),
+
+   ?_assertEqual(
+     {syntax_error,"syntax error before: ')'"},
+      unit("x:c(S)when (S==)x;(S==y)")),
 
    ?_assertEqual(
       {{f,c,1},
@@ -120,13 +169,13 @@ msc_test_() ->
 
    ?_assertEqual(
       {{a,b,2},
-       [{['_','_'],[],[]}],
+       [{'_',[],[]}],
        [local]},
       unit("a:b/2")),
 
    ?_assertEqual(
       {{a,b,2},
-       [{['_','_'],[],[{exception_trace}]}],
+       [{'_',[],[{exception_trace}]}],
        [local]},
       unit("a:b/2->return")),
 
@@ -204,6 +253,24 @@ msc_test_() ->
 
    ?_assertEqual(
       {{x,c,1},
+       [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
+       [local]},
+      unit("x:c(S)when (S==x;S==y)")),
+
+   ?_assertEqual(
+      {{x,c,1},
+       [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
+       [local]},
+      unit("x:c(S)when (S)==x;S==y")),
+
+   ?_assertEqual(
+      {{x,c,1},
+       [{['$1'],[{'orelse',{'==','$1',x},{'==','$1',y}}],[]}],
+       [local]},
+      unit("x:c(S)when ((S==x);(S==y))")),
+
+   ?_assertEqual(
+      {{x,c,1},
        [{['$1'],[{'or',{'==','$1',x},{'==','$1',y}}],[]}],
        [local]},
       unit("x:c(S)when (S==x)or(S==y)")),
@@ -211,9 +278,28 @@ msc_test_() ->
    ?_assertEqual(
       {{a,b,2},
        [{['$1','$2'],
-         [{'and',{is_record,'$1',rec},{'==','$2',0}},{'==','$1',z}],[]}],
+         [{'and',{is_record,'$1',rec,4},{'==','$2',0}}],
+         []}],
        [local]},
-      unit("a:b(X,Y)when is_record(X,rec) and (Y==0), (X==z)")),
+      unit("a:b(X,Y)when is_record(redbug_compiler_eunit#rec,X) and (Y==0)")),
+
+   ?_assertEqual(
+      {{a,b,2},
+       [{['$1','$2'],
+         [{'andalso',
+           {'and','$1',{'==','$2',0}},
+           {'==','$1',z}}],
+         []}],
+       [local]},
+      unit("a:b(X,Y)when X and (Y==0), (X==z)")),
+
+   ?_assertEqual(
+      {{a,b,2},
+       [{['$1','$2'],
+         [{'and',{{'$1','$2'}},{'==','$2','$2'}}],
+         []}],
+       [local]},
+      unit("a:b(X,Y)when {X,Y} and Y==Y")),
 
    ?_assertEqual(
       {{a,b,2},
@@ -223,7 +309,7 @@ msc_test_() ->
 
    ?_assertEqual(
       {{a,b,2},
-       [{['$1','$2'],[{'==','$1',1},{'=/=','$2',a}],[]}],
+       [{['$1','$2'],[{'andalso',{'==','$1',1},{'=/=','$2',a}}],[]}],
        [local]},
       unit("a:b(X,Y)when X==1,Y=/=a")),
 
@@ -235,7 +321,7 @@ msc_test_() ->
 
    ?_assertEqual(
       {{a,b,2},
-       [{['$1',y],[{'==',{element,1,'$1'},foo},{'==','$1',z}],[]}],
+       [{['$1',y],[{'andalso',{'==',{element,1,'$1'},foo},{'==','$1',z}}],[]}],
        [local]},
       unit("a:b(X,y)when element(1,X)==foo, (X==z)")),
 
@@ -247,13 +333,15 @@ msc_test_() ->
 
    ?_assertEqual(
       {{x,y,2},
-       [{['$1',['$1','$2','$3']],[{'==','$1','$2'},{is_atom,'$3'}],[]}],
+       [{['$1',['$1','$2','$3']],
+         [{'andalso',{'==','$1','$2'},{is_atom,'$3'}}],[]}],
        [local]},
       unit("x:y(A,[A,B,C])when A==B,is_atom(C)")),
 
    ?_assertEqual(
       {{x,y,1},
-       [{[['$1','$2','$3']],[{'=/=','$1','$2'},{is_atom,'$3'}],[]}],
+       [{[['$1','$2','$3']],
+         [{'andalso',{'=/=','$1','$2'},{is_atom,'$3'}}],[]}],
        [local]},
       unit("x:y([A,B,C])when A=/=B,is_atom(C)")),
 
@@ -294,9 +382,16 @@ msc_test_() ->
       unit("lists:reverse(\"ab\"++C)when 3<length(C)")),
 
    ?_assertEqual(
-      {{a,b,1},[{[[97,98|'$1']],[],[]}],
+      {{a,b,1},
+       [{[[97,98|'$1']],[],[]}],
        [local]},
       unit("a:b([$a,$b|C])")),
+
+   ?_assertEqual(
+      {{a,b,1},
+       [{[[46|'$1']],[],[]}],
+       [local]},
+     unit("a:b([22#22|C])")),
 
    ?_assertEqual(
       {{a,'_','_'},
@@ -305,7 +400,14 @@ msc_test_() ->
       unit("a:_(a)")),
 
    ?_assertEqual(
-      {{a,'_','_'},[{'_',[],[]}],
+      {{a,'_','_'},
+       [{['_','_'],[],[]}],
+       [global]},
+      unit("a:_/2")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[],[]}],
        [global]},
       unit("a:_")),
 
@@ -347,9 +449,21 @@ msc_test_() ->
 
    ?_assertEqual(
       {{x,c,1},
-       [{['$1'],[{'==',['$1','$1'],{'++',['$1'],['$1']}}],[]}],
+       [{['$1'],[{'==',['$1','$1'],['$1','$1']}],[]}],
        [local]},
       unit("x:c(A)when [A,A] == [A]++[A]")),
+
+   ?_assertEqual(
+      {{f,c,1},[{[list_to_pid("<0.0.1>")],[],[]}],[local]},
+      unit("f:c(<0.0.1>)")),
+
+   ?_assertEqual(
+      {{f,c,1},[{[list_to_port("#Port<0.0>")],[],[]}],[local]},
+      unit("f:c(#Port<0.0>)")),
+
+   ?_assertEqual(
+      {{f,c,1},[{[list_to_ref("#Ref<0.0.1.0>")],[],[]}],[local]},
+      unit("f:c(#Ref<0.0.1.0>)")),
 
    ?_assertEqual(
       {{f,m,1},
@@ -406,13 +520,49 @@ msc_test_() ->
       unit("maps:to_list(#{a=>b,c=>D})when D==e")),
 
    ?_assertEqual(
-      {{maps,to_list,1},
-       [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
-       [local]},
-      unit("maps:to_list(#{a:=b,c:=D})when D==e")),
+     {{maps,to_list,1},
+      [{[#{a=>b,c=>'$1'}],[{'==','$1',e}],[]}],
+      [local]},
+     unit("maps:to_list(#{a:=b,c:=D})when D==e")),
 
    ?_assertEqual(
-      {{maps,to_list,1},
-       [{['$1'],[{'is_map','$1'}],[]}],
-       [local]},
-      unit("maps:to_list(D)when is_map(D)"))].
+     {{maps,to_list,1},
+      [{['$1'],[{'is_map','$1'}],[]}],
+      [local]},
+     unit("maps:to_list(D)when is_map(D)")),
+
+   ?_assertEqual(
+     {{self,element,2},
+      [{[is_integer,hd],[],[]}],
+      [local]},
+     unit("self:element(is_integer,hd)")),
+
+   ?_assertEqual(
+     {{self,element,4},
+      [{[self,element,size,is_record],[],[]}],
+      [local]},
+     unit("self:element(self,element,size,is_record)")),
+
+   ?_assertEqual(
+     {{e,f,2},
+      [{[2,#rec{f1=0,f2=regular}],[],[]}],
+      [local]},
+     unit("e:f(2,redbug_compiler_eunit#rec{f1=0,f2=regular})")),
+
+   ?_assertEqual(
+     {{e,f,1},
+      [{['$1'],[{'==','$1',{self}}],[]}],
+      [local]},
+     unit("e:f(Pid) when Pid==self()"))].
+
+unit(Str) ->
+  try
+    erlang:trace_pattern({'_','_','_'}, false, []),
+    {MFA, MS, Flags} = redbug_compiler:compile(Str),
+    true = is_integer(erlang:trace_pattern(MFA, MS, Flags)),
+    {MFA, MS, Flags}
+  catch
+    exit:R -> R
+  after
+    erlang:trace_pattern({'_','_','_'}, false, [])
+  end.

@@ -60,7 +60,7 @@ t_2_test() ->
                get_line_seg(Filename,2,2)),
   Lines = lists:seq(3,lines(Filename)),
   ?assertEqual([true],
-               lists:usort([is_mfa(get_line_seg(Filename,L,1))||L<-Lines])),
+               lists:usort([is_mfa(get_line_seg(Filename,L,2))||L<-Lines])),
   maybe_delete(Filename).
 
 t_3_test() ->
@@ -116,10 +116,10 @@ t_6_test() ->
   maybe_delete(Filename).
 
 t_7_test() ->
-  {_,Msgs} = redbug:start("erlang",[blocking,{time,999},arity,debug]),
-  ?assertEqual([{{erlang,monitor,2},<<>>},
-                {{erlang,demonitor,1},<<>>}],
-               [MFA || {_,MFA,_,_} <- Msgs]).
+  {timeout,Msgs} = redbug:start("erlang",[blocking,{time,999},arity,debug]),
+  ?assertEqual([{erlang,demonitor,1},
+                {erlang,monitor,2}],
+               [MFA || {call,{MFA,_},_,_} <- Msgs]).
 
 t_8_test() ->
   {_,_} = redbug:start("lists:sort->return",[{file,"foo"},{time,999},debug]),
@@ -147,6 +147,7 @@ t_9_test() ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% trace file utilities
+
 maybe_show(Filename) ->
   [io:fwrite("~p~n",[read_file(Filename)]) || in_shell()].
 
