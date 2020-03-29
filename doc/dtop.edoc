@@ -1,0 +1,12 @@
+@doc
+Starts/stops (toggles) dtop.
+
+`Cfg' is a map. The allowd tags are `max_procs' and `sort'.
+
+If the number of processes is larger than `max_procs', dtop will
+not print any process info, just the header. This is to avoid
+oveloading the VM. It defaults to 1500.
+
+`sort' can be `msgs', `cpu', or `mem', It defaults to `cpu'.
+
+@end
