@@ -729,7 +729,9 @@ tcp_name(IP, Port) ->
     case inet:gethostbyaddr(IP) of
         {ok, #hostent{h_name = HostName}} ->
             try
-                {ok, Names} = net_adm:names(HostName),
+                {ok, Socket} = gen_tcp:connect(IP, 4369, [inet], 100),
+                inet:close(Socket),
+                {ok, Names} = erl_epmd:names(IP),
                 {value, {NodeName, Port}} = lists:keysearch(Port, 2, Names),
                 NodeName++"@"++HostName
             catch
