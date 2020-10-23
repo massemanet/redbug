@@ -51,7 +51,7 @@ sort(Col) ->
 
 max_prcs(MaxPrcs) ->
     case is_integer(MaxPrcs) of
-        true -> redbug_dtop ! {max_prcs, MaxPrcs};
+        true -> redbug_dtop ! {config, max_prcs, MaxPrcs};
         false -> {bad_limit, not_integer}
     end.
 
