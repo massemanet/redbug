@@ -16,7 +16,7 @@
 -export([start/0,
          stop/0,
          sort/1,
-         max_prcs/1]).
+         max_procs/1]).
 
 %%%---------------------------
 %%% API
@@ -49,9 +49,9 @@ sort(Col) ->
         false -> {unknown_sort_criteria, sort_criteria()}
     end.
 
-max_prcs(MaxPrcs) ->
+max_procs(MaxPrcs) ->
     case is_integer(MaxPrcs) of
-        true -> redbug_dtop ! {config, max_prcs, MaxPrcs};
+        true -> redbug_dtop ! {config, max_procs, MaxPrcs};
         false -> {bad_limit, not_integer}
     end.
 
@@ -68,7 +68,7 @@ sort_criteria() -> [cpu, mem, msgq].
          cache = [],
          now = erlang:timestamp(),
          prcs = 6,
-         max_prcs = 3000}).
+         max_procs = 3000}).
 
 -record(data,
        {sys, prc, net, mnesia}).
@@ -91,7 +91,9 @@ loop(LD) ->
     end.
 
 config(LD, sort, Val) ->
-    LD#ld{sort = Val}.
+    LD#ld{sort = Val};
+config(LD, max_procs, Val) ->
+    LD#ld{max_procs = Val}.
 
 printer(LD) ->
     Data = get_data(LD),
@@ -172,6 +174,15 @@ print_tags(FD) ->
     io:fwrite(FD, format(), tags()).
 
 print_prcs(LD, PrcData, SysData) ->
+    {DReds, Msgs, Mem} =
+        lists:foldl(fun(P, {A,B,C}) ->
+                            {A-pull_prc_d(reductions, P),
+                             B+pull_prc(message_queue_len, P),
+                             C+pull_prc(memory, P)}
+                    end, {pull_sys_d(reductions, SysData), 0, 0}, PrcData),
+    io:fwrite("~p ~p ~p~n", [human(round(cpu_per_red(SysData)*DReds/100)),
+                             human(Msgs),
+                             human(pull_sys(processes_used, SysData)-Mem)]),
     Prcs = complete_info(toplist(LD, PrcData), SysData),
     lists:foreach(fun(Prc) -> print_prc(LD, Prc) end, pad_lines(LD, Prcs)).
 
@@ -243,12 +254,16 @@ diff(DT, I, [Old|_] = Olds, [New|_] = News) ->
     case {Kold =:= Knew, Kold < Knew} of
         {true, _} -> [diff(DT, Old, New)|diff(DT, I, tl(Olds), tl(News))];
         {false, true}  -> diff(DT, I, tl(Olds), News);
-        {false, false} -> diff(DT, I, Olds, tl(News))
+        {false, false} -> [diff(DT, undefined, New)|diff(DT, I, Olds, tl(News))]
     end;
+diff(DT, I, [], [New|_] = News) ->
+    [diff(DT, undefined, New)|diff(DT, I, [], tl(News))];
 diff(_, _, _, _) ->
     [].
 
 %% diff each element in 2 tuples
+diff(DT, undefined, New) when is_tuple(New) ->
+    diff(DT, erlang:make_tuple(erlang:tuple_size(New), 0), New);
 diff(DT, Old, New) when is_tuple(Old) andalso is_tuple(New) ->
     list_to_tuple(ldiff(DT, tuple_to_list(Old), tuple_to_list(New))).
 
@@ -352,16 +367,18 @@ pull_sys_d(beam_user  , Sys) -> maybe_el(2, Sys#sys.beam_user);
 pull_sys_d(kernel     , Sys) -> maybe_el(2, Sys#sys.kernel);
 pull_sys_d(user       , Sys) -> maybe_el(2, Sys#sys.user).
 
-pull_sys(atom       , Sys) -> maybe_el(1, Sys#sys.atom);
-pull_sys(beam_vsz   , Sys) -> maybe_el(1, Sys#sys.beam_vsz);
-pull_sys(binary     , Sys) -> maybe_el(1, Sys#sys.binary);
-pull_sys(code       , Sys) -> maybe_el(1, Sys#sys.code);
-pull_sys(ets        , Sys) -> maybe_el(1, Sys#sys.ets);
-pull_sys(total      , Sys) -> maybe_el(1, Sys#sys.total);
-pull_sys(now        , Sys) -> maybe_el(1, Sys#sys.now);
-pull_sys(prcs       , Sys) -> maybe_el(1, Sys#sys.prcs);
-pull_sys(processes  , Sys) -> maybe_el(1, Sys#sys.processes);
-pull_sys(run_queue  , Sys) -> maybe_el(1, Sys#sys.run_queue).
+pull_sys(reductions     , Sys) -> maybe_el(1, Sys#sys.reductions);
+pull_sys(atom           , Sys) -> maybe_el(1, Sys#sys.atom);
+pull_sys(beam_vsz       , Sys) -> maybe_el(1, Sys#sys.beam_vsz);
+pull_sys(binary         , Sys) -> maybe_el(1, Sys#sys.binary);
+pull_sys(code           , Sys) -> maybe_el(1, Sys#sys.code);
+pull_sys(ets            , Sys) -> maybe_el(1, Sys#sys.ets);
+pull_sys(total          , Sys) -> maybe_el(1, Sys#sys.total);
+pull_sys(now            , Sys) -> maybe_el(1, Sys#sys.now);
+pull_sys(prcs           , Sys) -> maybe_el(1, Sys#sys.prcs);
+pull_sys(processes      , Sys) -> maybe_el(1, Sys#sys.processes);
+pull_sys(processes_used , Sys) -> maybe_el(1, Sys#sys.processes_used);
+pull_sys(run_queue      , Sys) -> maybe_el(1, Sys#sys.run_queue).
 
 get_sys_data(LD) ->
     {Ctxt, 0}                        = erlang:statistics(context_switches),
@@ -557,6 +574,7 @@ index_prc(pid) -> #prc.pid.
 
 pull_prc_d(reductions, Prc) -> maybe_el(2, Prc#prc.reductions).
 
+pull_prc(reductions        , Prc) -> maybe_el(1, Prc#prc.reductions);
 pull_prc(pid               , Prc) -> maybe_el(1, Prc#prc.pid);
 pull_prc(current_function  , Prc) -> maybe_el(1, Prc#prc.current_function);
 pull_prc(message_queue_len , Prc) -> maybe_el(1, Prc#prc.message_queue_len);
@@ -566,7 +584,7 @@ pull_prc(registered_name   , Prc) -> maybe_el(1, Prc#prc.registered_name);
 pull_prc(initial_call      , Prc) -> maybe_el(1, Prc#prc.initial_call).
 
 get_prc_data(LD) ->
-    case LD#ld.max_prcs < erlang:system_info(process_count) of
+    case LD#ld.max_procs < erlang:system_info(process_count) of
         true  -> [];
         false -> lists:map(fun prc_info/1, lists:sort(processes()))
     end.
