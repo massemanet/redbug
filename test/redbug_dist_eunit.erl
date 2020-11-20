@@ -22,8 +22,8 @@ x_test_() ->
      ?_assertMatch(
         {timeout,
          [{call,{{file,read_file_info,["/"]},<<>>},_,_},
-          {retn,{{file,read_file_info,1},{ok,{file_info,[_|_]}}},_,_},
-          {call,{{erlang,setelement,[1,{ok,{file_info,[_|_]}},bla]},<<>>},_,_}]},
+          {retn,{{file,read_file_info,1},{ok,#{'_RECORD':=file_info}}},_,_},
+          {call,{{erlang,setelement,[1,{ok,#{'_RECORD':=file_info}},bla]},<<>>},_,_}]},
         runner(
           mk_tracer(
             ["erlang:setelement(_, {_, file#file_info{type=directory}}, _)",
@@ -34,7 +34,7 @@ x_test_() ->
      ?_assertMatch(
         {timeout,
          [{call,{{file,read_file_info,["/"]},<<>>},_,_},
-          {retn,{{file,read_file_info,1},{ok,{file_info,[_|_]}}},_,_}]},
+          {retn,{{file,read_file_info,1},{ok,#{'_RECORD':=file_info}}},_,_}]},
         runner(
           mk_tracer(
             ["erlang:setelement(_, {_, file#file_info{type=regular}}, _)",

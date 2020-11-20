@@ -436,29 +436,15 @@ to_str({Pid, Reg}) ->
 to_str(RegisteredName) ->
   flat("~p", [RegisteredName]).
 
-expand(Term) ->
-  case get_keys() of
-    [] -> Term;
-    _ -> trav(Term, fun recordify/2, [])
-  end.
-
-recordify(T, A) when is_tuple(T) ->
-  case get_rec_fields(T) of
-    [] -> {T, A};
-    {Rec, Fields} -> {{Rec, lists:zip(Fields, tl(tuple_to_list(T)))}, A}
+%% expand records, if any
+expand(T) when is_list(T) -> lists:map(fun expand/1, T);
+expand(T) when is_map(T) -> maps:map(fun(_K, V) -> expand(V) end, T);
+expand(T) when is_tuple(T) andalso 0 < size(T) ->
+  case get({element(1, T), size(T)-1}) of
+    undefined -> list_to_tuple(expand(tuple_to_list(T)));
+    Fields -> maps:from_list(lists:zip(['_RECORD'|Fields], expand(tuple_to_list(T))))
   end;
-recordify(T, A) ->
-  {T, A}.
-
-trav(Term, Fun, Acc) ->
-  {T, A} = Fun(Term, Acc),
-  F = fun(E) -> trav(E, Fun, A) end,
-  case T of
-    _ when is_list(T) -> lists:map(F, T);
-    _ when is_map(T) -> maps:from_list(lists:map(F, maps:to_list(T)));
-    _ when is_tuple(T)-> list_to_tuple(lists:map(F, tuple_to_list(T)));
-    _ -> T
-  end.
+expand(T) -> T.
 
 mk_out(#cnf{print_re=RE, print_file=File}) ->
   FD = get_fd(File),
@@ -521,12 +507,6 @@ mfaf(I) ->
 put_recs(Recs) ->
   [put({Name, length(Fields)}, Fields) || {Name, Fields} <- Recs].
 
-get_rec_fields(Tuple) ->
-  Rec = element(1, Tuple),
-  case get({Rec, size(Tuple)-1}) of
-    undefined -> [];
-    Fields -> {Rec, Fields}
-  end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% pack data into a proplist for target consumption
