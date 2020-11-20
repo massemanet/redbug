@@ -51,7 +51,7 @@ sort(Col) ->
 
 max_prcs(MaxPrcs) ->
     case is_integer(MaxPrcs) of
-        true -> redbug_dtop ! {max_prcs, MaxPrcs};
+        true -> redbug_dtop ! {config, max_prcs, MaxPrcs};
         false -> {bad_limit, not_integer}
     end.
 
@@ -91,7 +91,9 @@ loop(LD) ->
     end.
 
 config(LD, sort, Val) ->
-    LD#ld{sort = Val}.
+    LD#ld{sort = Val};
+config(LD, max_prcs, Val) ->
+    LD#ld{max_prcs = Val}.
 
 printer(LD) ->
     Data = get_data(LD),
