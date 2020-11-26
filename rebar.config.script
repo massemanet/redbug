@@ -2,31 +2,20 @@
 %% vim: set ft=erlang ts=2 sw=2:
 
 %% this code is not particularly nice.
-%% the idea is to test for the presence of functions, in order to set
-%% preprocessor flags, so that we can use the preprocessor to hide new
-%% functions from old compilers.
-%% "erl_opts" gets passed to the compiler.
-%% "CONFIG" is a magic rebar thing.
-%% The foldl takes a [{function(Predicate/0), atom(Macro)}].
-%% If the Predicate is false, the Macro is passed to the compiler.
-%% Predicate should test for presence of new functions, and the Macro
-%% should be used to enable old functions. That way new functions are
-%% enabled by default.
+%% we fold a list of fun/0's over CONFIG (the rebar.config).
+%% If the fun returns 'true', nothing happens,
+%% If it returns '{Key, Val}', 'Val' is inserted or appended to the value of 'Key'.
 
-NOW =
-fun() ->
-    erlang:is_builtin(erlang, timestamp, 0) orelse {erl_opts, {d, 'USE_NOW'}}
-end,
+NOW = fun() ->
+          erlang:is_builtin(erlang, timestamp, 0) orelse {erl_opts, {d, 'USE_NOW'}}
+      end,
 
-GITVSN =
-fun() ->
-    case os:cmd("(git describe | grep -Eo '^[0-9\.]+' | tr -d '\n') 2>/dev/null") of
-      [] ->
-        true;
-      VSN ->
-        {edoc_opts, {def, [{version, VSN}]}}
-    end
-end,
+GITVSN = fun() ->
+             case os:cmd("(git describe | grep -Eo '^[0-9\.]+' | tr -d '\n') 2>/dev/null") of
+               [] -> true;
+               VSN -> {edoc_opts, {def, [{version, VSN}]}}
+             end
+         end,
 
 Funs = [NOW, GITVSN],
 
