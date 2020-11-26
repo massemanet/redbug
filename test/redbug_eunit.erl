@@ -6,7 +6,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 t_0_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug0.txt",
   {_,_} = redbug:start("lists:sort",[{print_file,Filename},print_msec,debug]),
   [1,2,3] = lists:sort([3,2,1]),
   timer:sleep(100),
@@ -20,7 +20,7 @@ t_0_test() ->
   maybe_delete(Filename).
 
 t_01_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug01.txt",
   {_,_} = redbug:start("lists:sort",[{print_file,Filename},arity,debug]),
   [1,2,3] = lists:sort([3,2,1]),
   timer:sleep(100),
@@ -34,7 +34,7 @@ t_01_test() ->
   maybe_delete(Filename).
 
 t_1_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug1.txt",
   {_,_} = redbug:start("lists:sort->return",
                        [{print_file,Filename},buffered,debug]),
   [1,2,3] = lists:sort([3,2,1]),
@@ -49,7 +49,7 @@ t_1_test() ->
   maybe_delete(Filename).
 
 t_2_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug2.txt",
   {_,_} = redbug:start("lists:sort->stack",[{print_file,Filename},debug]),
   [1,2,3] = lists:sort([3,2,1]),
   timer:sleep(100),
@@ -64,7 +64,7 @@ t_2_test() ->
   maybe_delete(Filename).
 
 t_3_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug3.txt",
   Pid = spawn(fun()->receive P when is_pid(P)->P!ding;quit->ok end end),
   {_,_} = redbug:start(send,[{procs,Pid},{print_file,Filename},debug]),
   Pid ! self(),
@@ -77,7 +77,7 @@ t_3_test() ->
   maybe_delete(Filename).
 
 t_4_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug4.txt",
   Pid = spawn(fun()->receive P when is_pid(P)->P!ding;quit->ok end end),
   {_,_} = redbug:start('receive',[{procs,Pid},{print_file,Filename},debug]),
   Pid ! pling,
@@ -90,7 +90,7 @@ t_4_test() ->
   maybe_delete(Filename).
 
 t_5_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug5.txt",
   {_,_} = redbug:start("lists:sort->time",
                        [{print_file,Filename},{time,999},debug]),
   [1,2,3] = lists:sort([3,2,1]),
@@ -99,11 +99,11 @@ t_5_test() ->
   ?assertEqual(<<"lists:sort([3,2,1])">>,
                get_line_seg(Filename,2,2)),
   ?assertEqual(<<"lists:sort/1">>,
-               get_line_seg(Filename,3,6)),
+               get_line_seg(Filename,3,8)),
   maybe_delete(Filename).
 
 t_6_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug6.txt",
   {_,_} = redbug:start("lists:sort->count",
                        [{print_file,Filename},{time,999},debug]),
   [1,2,3] = lists:sort([3,2,1]),
@@ -133,7 +133,7 @@ t_8_test() ->
   maybe_delete("foo0.trc").
 
 t_9_test() ->
-  Filename = "redbug.txt",
+  Filename = "redbug9.txt",
   Options = [{print_file, Filename}, {time, 999}, {print_return, false}],
   {_,_} = redbug:start("lists:sort->return",[debug|Options]),
   [1,2,3] = lists:sort([3,2,1]),
