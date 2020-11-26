@@ -31,4 +31,9 @@ sed "s/$OVSN/$NVSN/" < "$APPSRC" > $$ && mv $$ "$APPSRC"
 git add "$APPSRC"
 git commit -m"v$NVSN"
 git tag -a -m"$NVSN" "$NVSN"
-git push && git push --tags
+git push \
+    && git push --tags \
+    && rebar3 eunit \
+    && rebar3 edoc \
+    && rebar3 hex publish \
+    && rebar3 hex docs
