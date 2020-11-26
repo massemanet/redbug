@@ -400,7 +400,7 @@ maybe_exit_size_loop(MS, L) when length(L) < MS ->
 maybe_exit_size_loop(MS, L) when MS =< length(L) ->
   exit({arg_length, length(L)});
 maybe_exit_size_loop(MS, B) when MS < byte_size(B) ->
-  exit({arg_size_loop, byte_size(B)});
+  exit({arg_size, byte_size(B)});
 maybe_exit_size_loop(_, _) ->
   ok.
 

@@ -394,8 +394,8 @@ mk_outer(#cnf{print_depth=Depth, print_msec=MS, print_return=Ret} = Cnf) ->
                 {Count+AC, Sec*1000000+Usec+AT}
             end,
           {Count, Time} = lists:foldl(PerProc, {0, 0}, PerProcCT),
-          [OutFun("~n% ~6s : ~6s : ~w:~w/~w",
-                  [human(Count), human(Time), M, F, A]) || 0 < Count];
+          [OutFun("% ~6s : ~6s : ~6s : ~w:~w/~w",
+                  [human(Count), human(Time), human(Time/Count), M, F, A]) || 0 < Count];
         {'call_count', {_, false}} ->
           ok;
         {'call_count', {{M, F, A}, Count}} ->
@@ -437,6 +437,7 @@ to_str(RegisteredName) ->
   flat("~p", [RegisteredName]).
 
 %% expand records, if any
+expand([A|B]) when not is_list(B) -> [expand(A)|expand(B)];
 expand(T) when is_list(T) -> lists:map(fun expand/1, T);
 expand(T) when is_map(T) -> maps:map(fun(_K, V) -> expand(V) end, T);
 expand(T) when is_tuple(T) andalso 0 < size(T) ->
