@@ -437,8 +437,7 @@ to_str(RegisteredName) ->
   flat("~p", [RegisteredName]).
 
 %% expand records, if any
-expand([A|B]) when not is_list(B) -> [expand(A)|expand(B)];
-expand(T) when is_list(T) -> lists:map(fun expand/1, T);
+expand(T) when is_list(T) -> improper_map(fun expand/1, T);
 expand(T) when is_map(T) -> maps:map(fun(_K, V) -> expand(V) end, T);
 expand(T) when is_tuple(T) andalso 0 < size(T) ->
   case get({element(1, T), size(T)-1}) of
@@ -446,6 +445,12 @@ expand(T) when is_tuple(T) andalso 0 < size(T) ->
     Fields -> maps:from_list(lists:zip(['_RECORD'|Fields], expand(tuple_to_list(T))))
   end;
 expand(T) -> T.
+
+%% handle improper lists
+improper_map(_, []) -> [];
+improper_map(F, [E]) -> [F(E)];
+improper_map(F, [A|B]) when not is_list(B) -> [F(A)|F(B)];
+improper_map(F, [A|B]) -> [F(A)|improper_map(F, B)].
 
 mk_out(#cnf{print_re=RE, print_file=File}) ->
   FD = get_fd(File),

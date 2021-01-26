@@ -145,6 +145,23 @@ t_9_test() ->
                get_line_seg(Filename,4,2,4)),
   maybe_delete(Filename).
 
+t_10_test() ->
+  Filename = "redbug10.txt",
+  Options = [{print_file, Filename}, {time, 999}],
+  {_,_} = redbug:start("redbug_eunit:ipl()->return",[debug|Options]),
+  ipl(),
+  timer:sleep(1100),
+  maybe_show(Filename),
+  ?assertEqual(<<"redbug_eunit:ipl()">>,
+               get_line_seg(Filename,2,2)),
+  ?assertEqual([<<"redbug_eunit:ipl/0">>,<<"->">>,<<"[a,b|c]">>],
+               get_line_seg(Filename,4,2,4)),
+  maybe_delete(Filename).
+
+%% test printing of improper lists
+ipl() -> [a,b|c].
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% trace file utilities
 
