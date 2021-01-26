@@ -1,9 +1,23 @@
 #!/bin/bash
 
-function usage () {
+set -euo pipefail
+
+usage () {
     echo "$0 major|minor|patch"
     exit
 }
+
+err() {
+    echo "${1:-}"
+    exit 1
+}
+
+git remote -v | grep -q "git@github.com" || \
+    err "git is redonly"
+(git push && git status) | grep "Your branch is up to date with 'origin/master'." || \
+    err "git is dirty"
+rebar3 hex user whoami || \
+    err "no hex user"
 
 APPSRC="$(find "$PWD/src" -name "*.app.src")"
 [ -z "$APPSRC" ] && usage
