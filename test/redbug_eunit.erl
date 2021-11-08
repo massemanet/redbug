@@ -58,7 +58,7 @@ t_2_test() ->
   maybe_show(Filename),
   ?assertEqual(<<"lists:sort([3,2,1])">>,
                get_line_seg(Filename,2,2)),
-  Lines = lists:seq(3,lines(Filename)),
+  Lines = lists:seq(3,lines(Filename)-1),
   ?assertEqual([true],
                lists:usort([is_mfa(get_line_seg(Filename,L,2))||L<-Lines])),
   maybe_delete(Filename).
