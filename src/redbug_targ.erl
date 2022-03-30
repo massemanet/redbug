@@ -540,25 +540,40 @@ netload0() ->
 
 netload1() ->
   [start_dist() || node() =:= nonode@nohost],
-  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
-  SlaveName = eunit_inferior,
-  {ok, Slave} = ct_slave:start(SlaveName, Opts),
-  ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
-  stop_slave(Slave, SlaveName).
+  PeerName = eunit_inferior,
+  {ControllingPid, PeerNode} = start_peer(PeerName),
+  ?assertMatch(ok, assert_load(PeerNode, redbug_dist_eunit)),
+  stop_peer(ControllingPid, PeerNode, PeerName).
 
 netload2() ->
   [start_dist() || node() =:= nonode@nohost],
-  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
-  SlaveName = eunit_inferior,
-  {ok, Slave} = ct_slave:start(SlaveName, Opts),
+  PeerName = eunit_inferior,
+  {ControllingPid, PeerNode} = start_peer(PeerName),
   Ebin = filename:dirname(code:which(redbug)),
   Test = re:replace(re:replace(Ebin, "default", "test"), "ebin", "test"),
   code:add_patha(unicode:characters_to_list(Test)),
-  ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
-  stop_slave(Slave, SlaveName).
+  ?assertMatch(ok, assert_load(PeerNode, redbug_dist_eunit)),
+  stop_peer(ControllingPid, PeerNode, PeerName).
 
--ifdef(OTP_RELEASE).
-stop_slave(Slave, _) -> {ok, Slave} = ct_slave:stop(Slave).
+-ifdef(OTP_24_OR_EARLIER).
+start_peer(PeerName) ->
+  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+  {ok, PeerNode} = ct_slave:start(PeerName, Opts),
+  {undefined, PeerNode}.
 -else.
-stop_slave(Slave, SlaveName) -> {ok, Slave} = ct_slave:stop(SlaveName).
+-include_lib("common_test/include/ct.hrl").
+start_peer(PeerName) ->
+  Opts = #{name => PeerName, wait_boot => 5000},
+  {ok, Pid, PeerNode} = ?CT_PEER(Opts),
+  {Pid, PeerNode}.
+-endif.
+
+-ifdef(OTP_20_OR_EARLIER).
+stop_peer(_, PeerNode, PeerName) -> {ok, PeerNode} = ct_slave:stop(PeerName).
+-else.
+-ifdef(OTP_24_OR_EARLIER).
+stop_peer(_, PeerNode, _) -> {ok, PeerNode} = ct_slave:stop(PeerNode).
+-else.
+stop_peer(ControllingPid, _, _) -> ok = peer:stop(ControllingPid).
+-endif.
 -endif.

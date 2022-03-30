@@ -55,8 +55,8 @@ x_test_() ->
           mk_action(100, 100, "setelement(1, file:read_file_info(\"/\"), bla). ")))].
 
 mk_tracer(RTP, Opts) ->
-    fun(Slave) ->
-        Res = redbug:start(RTP, [{target, Slave}, blocking]++Opts),
+    fun(PeerNode) ->
+        Res = redbug:start(RTP, [{target, PeerNode}, blocking]++Opts),
         receive {pid, P} -> P ! {res, Res} end
     end.
 
@@ -64,28 +64,44 @@ mk_action(PreTO, PostTO, Str) ->
     {done, {ok, Ts, 0}, []} = erl_scan:tokens([], Str, 0),
     {ok, Es} = erl_parse:parse_exprs(Ts),
     Bs = erl_eval:new_bindings(),
-    fun(Slave) ->
+    fun(PeerNode) ->
         timer:sleep(PreTO),
-        rpc:call(Slave, erl_eval, exprs, [Es, Bs]),
+        rpc:call(PeerNode, erl_eval, exprs, [Es, Bs]),
         timer:sleep(PostTO)
     end.
 
 runner(Tracer, Action) ->
     os:cmd("epmd -daemon"),
     [net_kernel:start([eunit_master, shortnames]) || node() =:= nonode@nohost],
-    Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
-    SlaveName = eunit_inferior,
-    {ok, Slave} = ct_slave:start(SlaveName, Opts),
-    {Pid, _} = spawn_monitor(fun() -> Tracer(Slave) end),
-    Action(Slave),
-    stop_slave(Slave, SlaveName),
+    PeerName = eunit_inferior,
+    {ControllingPid, PeerNode} = start_peer(PeerName),
+    {Pid, _} = spawn_monitor(fun() -> Tracer(PeerNode) end),
+    Action(PeerNode),
+    stop_peer(ControllingPid, PeerNode, PeerName),
     Pid ! {pid, self()},
     receive {res, X} -> X after 1000 -> timeout end.
 
--ifdef(OTP_RELEASE).
-stop_slave(Slave, _) -> {ok, Slave} = ct_slave:stop(Slave).
+-ifdef(OTP_24_OR_EARLIER).
+start_peer(PeerName) ->
+  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
+  {ok, PeerNode} = ct_slave:start(PeerName, Opts),
+  {undefined, PeerNode}.
 -else.
-stop_slave(Slave, SlaveName) -> {ok, Slave} = ct_slave:stop(SlaveName).
+-include_lib("common_test/include/ct.hrl").
+start_peer(PeerName) ->
+  Opts = #{name => PeerName, wait_boot => 5000},
+  {ok, Pid, PeerNode} = ?CT_PEER(Opts),
+  {Pid, PeerNode}.
+-endif.
+
+-ifdef(OTP_20_OR_EARLIER).
+stop_peer(_, PeerNode, PeerName) -> {ok, PeerNode} = ct_slave:stop(PeerName).
+-else.
+-ifdef(OTP_24_OR_EARLIER).
+stop_peer(_, PeerNode, _) -> {ok, PeerNode} = ct_slave:stop(PeerNode).
+-else.
+stop_peer(ControllingPid, _, _) -> ok = peer:stop(ControllingPid).
+-endif.
 -endif.
 
 %% mk_interpreted_fun(Str) ->
