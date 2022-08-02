@@ -411,7 +411,7 @@ outer(Tag, Data, PI, TS, Depth, MS, Ret, Calls, OutFun) ->
             true ->
               OutFun("~n% ~s ~s~n% ~w:~w/~w", [MTS, to_str(PI), M, F, A]);
             false->
-              Args = [flat("~P", [expand(A0), Depth]) || A0 <- A],
+              Args = [flat("~tP", [expand(A0), Depth]) || A0 <- A],
               AL = string:join(Args, ", "),
               OutFun("~n% ~s ~s~n% ~w:~w(~s)", [MTS, to_str(PI), M, F, AL])
           end,
@@ -424,13 +424,13 @@ outer(Tag, Data, PI, TS, Depth, MS, Ret, Calls, OutFun) ->
               true  -> expand(Val0);
               false -> '...'
             end,
-      OutFun("~n% ~s ~s~n% ~p:~p/~p -> ~P",
+      OutFun("~n% ~s ~s~n% ~p:~p/~p -> ~tP",
              [MTS, to_str(PI), M, F, A, Val, Depth]);
     {'send', {MSG, ToPI}} ->
-      OutFun("~n% ~s ~s~n% ~s <<< ~P",
+      OutFun("~n% ~s ~s~n% ~s <<< ~tP",
              [MTS, to_str(PI), to_str(ToPI), expand(MSG), Depth]);
     {'recv', MSG} ->
-      OutFun("~n% ~s ~s~n% <<< ~P",
+      OutFun("~n% ~s ~s~n% <<< ~tP",
              [MTS, to_str(PI), expand(MSG), Depth])
   end.
 
