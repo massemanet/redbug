@@ -12,7 +12,7 @@
 -module(redbug_targ).
 
 -export([start/2]).
--export([init/1]).
+-export([init/0]).
 -export([get_rec_fields/2]).
 
 -record(ld, {buffering,
@@ -39,21 +39,12 @@
              wrap_size}).
 
 %%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% unless the target has up to date versions of redbug code, we send it over
-%% and load it. Then we start the rarget process.
+%% unless the target node has up to date versions of redbug code, we
+%% send it over and load it. Then we start the target process.
 
 start(Node, Cnf) ->
   assert_loaded(Node, [?MODULE, redbug_compiler]),
   do_start(Node, mk_ld(Cnf)).
-
-mk_ld(Props) ->
-  #ld{host_pid = self(),
-      time     = proplists:get_value(time, Props),
-      flags    = proplists:get_value(flags, Props),
-      asts     = proplists:get_value(asts, Props),
-      procs    = proplists:get_value(procs, Props),
-      records  = proplists:get_value(records, Props),
-      where    = proplists:get_value(where, Props)}.
 
 assert_loaded(Node, Modules) ->
   lists:foreach(fun(M) -> assert_load(Node, M) end, Modules).
@@ -86,10 +77,19 @@ ftime([]) -> interpreted;
 ftime([{time, T}|_]) -> T;
 ftime([_|T]) -> ftime(T).
 
+mk_ld(Props) ->
+  #ld{host_pid = self(),
+      time     = proplists:get_value(time, Props),
+      flags    = proplists:get_value(flags, Props),
+      asts     = proplists:get_value(asts, Props),
+      procs    = proplists:get_value(procs, Props),
+      records  = proplists:get_value(records, Props),
+      where    = proplists:get_value(where, Props)}.
+
 do_start(Node, LD) ->
   case Node =:= nonode@nohost orelse net_adm:ping(Node) =:= pong of
     true ->
-      Pid = spawn_link(Node, fun init/0),
+      Pid = spawn_link(Node, fun redbug_targ:init/0),
       Pid ! LD,
       Pid;
     false ->
@@ -127,7 +127,8 @@ init(LD0) ->
   NoFuncs = set_tps(LD#ld.trace_patterns),
   assert_trace_targets(NoProcs, NoFuncs, LD#ld.flags, LD#ld.procs),
   LD#ld.host_pid ! {{starting, self(), NoProcs, NoFuncs}},
-  exit((LD#ld.loop_fun)()).
+  R = (LD#ld.loop_fun)(),
+  exit(R).
 
 codegen(LD) ->
   LD#ld{trace_patterns = lists:map(fun redbug_compiler:generate/1, LD#ld.asts)}.
@@ -342,6 +343,7 @@ buffering(#ld{buffering = Buff}) ->
 loop_lp(LD, Buff, Count) ->
   maybe_exit_queue(LD),
   maybe_exit_count(LD, Buff, Count),
+
   receive
     {trace_ts, Pid, Tag, A, TS} ->
       Buf = msg(Buff, LD, {Tag, Pid, TS, A}),
@@ -527,10 +529,6 @@ ts() -> erlang:timestamp().
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -include_lib("eunit/include/eunit.hrl").
 
-start_dist() ->
-  os:cmd("epmd -daemon"),
-  net_kernel:start([eunit_master, shortnames]).
-
 netload_test_() ->
   [fun netload0/0, fun netload1/0, fun netload2/0].
 
@@ -539,26 +537,14 @@ netload0() ->
   ?assertMatch({module, redbug}, assert_load(nonode@nohost, redbug)).
 
 netload1() ->
-  [start_dist() || node() =:= nonode@nohost],
-  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
-  SlaveName = eunit_inferior,
-  {ok, Slave} = ct_slave:start(SlaveName, Opts),
-  ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
-  stop_slave(Slave, SlaveName).
+  {Peer, PeerName} = redbug_dist_eunit:start_peer(),
+  ?assertMatch(ok, assert_load(PeerName, redbug_dist_eunit)),
+  ok = redbug_dist_eunit:stop_peer(Peer, PeerName).
 
 netload2() ->
-  [start_dist() || node() =:= nonode@nohost],
-  Opts = [{kill_if_fail, true}, {monitor_master, true}, {boot_timeout, 5}],
-  SlaveName = eunit_inferior,
-  {ok, Slave} = ct_slave:start(SlaveName, Opts),
+  {Peer, PeerName} = redbug_dist_eunit:start_peer(),
   Ebin = filename:dirname(code:which(redbug)),
   Test = re:replace(re:replace(Ebin, "default", "test"), "ebin", "test"),
   code:add_patha(unicode:characters_to_list(Test)),
-  ?assertMatch(ok, assert_load(Slave, redbug_dist_eunit)),
-  stop_slave(Slave, SlaveName).
-
--ifdef(OTP_RELEASE).
-stop_slave(Slave, _) -> {ok, Slave} = ct_slave:stop(Slave).
--else.
-stop_slave(Slave, SlaveName) -> {ok, Slave} = ct_slave:stop(SlaveName).
--endif.
+  ?assertMatch(ok, assert_load(PeerName, redbug_dist_eunit)),
+  ok = redbug_dist_eunit:stop_peer(Peer, PeerName).

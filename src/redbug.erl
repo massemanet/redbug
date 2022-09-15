@@ -13,9 +13,10 @@
 -export([stop/0]).
 -export([dtop/0, dtop/1]).
 
--define(log(T), error_logger:info_report(
-                  [process_info(self(), current_function),
-                   {line, ?LINE}|T])).
+-define(
+   log(T),
+   error_logger:info_report(
+     [{function, {?MODULE, ?FUNCTION_NAME}}, {line, ?LINE}|T])).
 
 %% erlang:get_stacktrace/0 was made obsolete in OTP21
 -ifdef(OTP_RELEASE). %% this implies 21 or higher
@@ -263,7 +264,7 @@ init(Cnf) ->
 starting(Cnf = #cnf{trc_pid=TrcPid}) ->
   receive
     {{starting, TrcPid, P, F}} -> running(run(Cnf, P, F));
-    {'EXIT', TrcPid, R}   -> throw(R)
+    {'EXIT', TrcPid, R} -> throw(R)
   end.
 
 running(Cnf = #cnf{trc_pid=TrcPid, print_pid=PrintPid}) ->
