@@ -10,6 +10,12 @@ NOW = fun() ->
           erlang:is_builtin(erlang, timestamp, 0) orelse {erl_opts, {d, 'USE_NOW'}}
       end,
 
+PEER = fun() ->
+           try not lists:member({start,0}, peer:module_info(exports)) orelse {erl_opts, {d, 'USE_PEER'}}
+           catch _:_ -> true
+           end
+       end,
+
 GITVSN = fun() ->
              case os:cmd("(git describe | grep -Eo '^[0-9\.]+' | tr -d '\n') 2>/dev/null") of
                [] -> true;
@@ -17,7 +23,7 @@ GITVSN = fun() ->
              end
          end,
 
-Funs = [NOW, GITVSN],
+Funs = [NOW, PEER, GITVSN],
 
 %% ================================================
 KeyAppend = fun(_, Tag, E, [])           -> [{Tag, [E]}];
