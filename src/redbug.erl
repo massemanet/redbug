@@ -204,10 +204,10 @@ start(Trc, Props) when is_list(Props) ->
 assert_print_fun(Cnf) ->
   case is_function(Cnf#cnf.print_fun) of
     true -> Cnf;
-    false-> Cnf#cnf{print_fun=make_print_fun(Cnf)}
+    false-> Cnf#cnf{print_fun=mk_print_fun(Cnf)}
   end.
 
-make_print_fun(Cnf) ->
+mk_print_fun(Cnf) ->
   case Cnf#cnf.blocking of
     false-> mk_outer(Cnf);
     true -> mk_blocker()
@@ -331,13 +331,8 @@ do_start(OCnf) ->
 maybe_new_target(Cnf = #cnf{target=Target}) ->
   case lists:member($@, Str=atom_to_list(Target)) of
     true -> Cnf;
-    false-> Cnf#cnf{target=to_atom(Str++"@"++element(2, inet:gethostname()))}
+    false-> Cnf#cnf{target=list_to_atom(Str++"@"++element(2, inet:gethostname()))}
   end.
-
-to_atom(L) -> list_to_atom(L).
-
-spawn_printer(PrintFun, Cnf) ->
-  Cnf#cnf{print_pid=spawn_link(fun() -> print_init(PrintFun) end)}.
 
 wrap_print_fun(#cnf{print_fun=PF}) ->
   case erlang:fun_info(PF, arity) of
@@ -352,6 +347,9 @@ maybe_update_count(M, N) ->
     recv -> N+1;
     _    -> N
   end.
+
+spawn_printer(PrintFun, Cnf) ->
+  Cnf#cnf{print_pid=spawn_link(fun() -> print_init(PrintFun) end)}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% the default print fun for blocking mode (i.e. return a term).
@@ -378,59 +376,59 @@ mk_blocker() ->
 
 mk_outer(#cnf{file=[_|_]}) ->
   fun(_) -> ok end;
-mk_outer(#cnf{print_depth=Depth, print_msec=MS, print_return=Ret} = Cnf) ->
+mk_outer(#cnf{print_depth=Depth, print_msec=MS, print_return=Ret, print_calls=Calls} = Cnf) ->
   OutFun = mk_out(Cnf),
-  fun({Tag, Data, PI, TS}) ->
-      MTS = fix_ts(MS, TS),
-      case {Tag, Data} of
-        {'meta', {recs, Recs}} ->
-          put_recs(Recs);
-        {'meta', _} ->
-          ok;
-        {'call_time', {_, false}} ->
-          ok;
-        {'call_time', {{M, F, A}, PerProcCT}} ->
-          PerProc =
-            fun({_, Count, Sec, Usec}, {AC, AT}) ->
-                {Count+AC, Sec*1000000+Usec+AT}
-            end,
-          {Count, Time} = lists:foldl(PerProc, {0, 0}, PerProcCT),
-          [OutFun("% ~6s : ~6s : ~6s : ~w:~w/~w",
-                  [human(Count), human(Time), human(Time/Count), M, F, A]) || 0 < Count];
-        {'call_count', {_, false}} ->
-          ok;
-        {'call_count', {{M, F, A}, Count}} ->
-          [OutFun("~n% ~6s : ~w:~w/~w", [human(Count), M, F, A]) || 0 < Count];
-        {'call', {{M, F, A}, Bin}} ->
-          case Cnf#cnf.print_calls of
+  fun({Tag, Data, PI, TS}) -> outer(Tag, Data, PI, TS, Depth, MS, Ret, Calls, OutFun) end.
+
+outer(Tag, Data, PI, TS, Depth, MS, Ret, Calls, OutFun) ->
+  MTS = fix_ts(MS, TS),
+  case {Tag, Data} of
+    {'meta', {recs, Recs}} ->
+      put_recs(Recs);
+    {'meta', _} ->
+      ok;
+    {'call_time', {_, false}} ->
+      ok;
+    {'call_time', {{M, F, A}, PerProcCT}} ->
+      {Count, Time} = lists:foldl(fun per_proc/2, {0, 0}, PerProcCT),
+      [OutFun("% ~6s : ~6s : ~6s : ~w:~w/~w",
+              [human(Count), human(Time), human(Time/Count), M, F, A]) || 0 < Count];
+    {'call_count', {_, false}} ->
+      ok;
+    {'call_count', {{M, F, A}, Count}} ->
+      [OutFun("~n% ~6s : ~w:~w/~w", [human(Count), M, F, A]) || 0 < Count];
+    {'call', {{M, F, A}, Bin}} ->
+      case Calls of
+        true ->
+          case is_integer(A) of
             true ->
-              case is_integer(A) of
-                true ->
-                  OutFun("~n% ~s ~s~n% ~w:~w/~w", [MTS, to_str(PI), M, F, A]);
-                false->
-                  Args = [flat("~P", [expand(A0), Depth]) || A0 <- A],
-                  AL = string:join(Args, ", "),
-                  OutFun("~n% ~s ~s~n% ~w:~w(~s)", [MTS, to_str(PI), M, F, AL])
-              end,
-              lists:foreach(fun(L) -> OutFun("%   ~s", [L]) end, stak(Bin));
+              OutFun("~n% ~s ~s~n% ~w:~w/~w", [MTS, to_str(PI), M, F, A]);
             false->
-              ok
-          end;
-        {'retn', {{M, F, A}, Val0}} ->
-          Val = case Ret of
-                  true  -> expand(Val0);
-                  false -> '...'
-                end,
-          OutFun("~n% ~s ~s~n% ~p:~p/~p -> ~P",
-                 [MTS, to_str(PI), M, F, A, Val, Depth]);
-        {'send', {MSG, ToPI}} ->
-          OutFun("~n% ~s ~s~n% ~s <<< ~P",
-                 [MTS, to_str(PI), to_str(ToPI), expand(MSG), Depth]);
-        {'recv', MSG} ->
-          OutFun("~n% ~s ~s~n% <<< ~P",
-                 [MTS, to_str(PI), expand(MSG), Depth])
-      end
+              Args = [flat("~P", [expand(A0), Depth]) || A0 <- A],
+              AL = string:join(Args, ", "),
+              OutFun("~n% ~s ~s~n% ~w:~w(~s)", [MTS, to_str(PI), M, F, AL])
+          end,
+          lists:foreach(fun(L) -> OutFun("%   ~s", [L]) end, stak(Bin));
+        false->
+          ok
+      end;
+    {'retn', {{M, F, A}, Val0}} ->
+      Val = case Ret of
+              true  -> expand(Val0);
+              false -> '...'
+            end,
+      OutFun("~n% ~s ~s~n% ~p:~p/~p -> ~P",
+             [MTS, to_str(PI), M, F, A, Val, Depth]);
+    {'send', {MSG, ToPI}} ->
+      OutFun("~n% ~s ~s~n% ~s <<< ~P",
+             [MTS, to_str(PI), to_str(ToPI), expand(MSG), Depth]);
+    {'recv', MSG} ->
+      OutFun("~n% ~s ~s~n% <<< ~P",
+             [MTS, to_str(PI), expand(MSG), Depth])
   end.
+
+per_proc({_, Count, Sec, Usec}, {AC, AT}) ->
+  {Count+AC, Sec*1000000+Usec+AT}.
 
 to_str({Pid, Reg}) ->
   flat("~w(~p)", [Pid, Reg]);
@@ -453,24 +451,32 @@ improper_map(F, [E]) -> [F(E)];
 improper_map(F, [A|B]) when not is_list(B) -> [F(A)|F(B)];
 improper_map(F, [A|B]) -> [F(A)|improper_map(F, B)].
 
+%% we assert that the file can be created here (in the redbug proc),
+%% but we don't actually open the file until we run the fun (in the
+%% printer proc).
 mk_out(#cnf{print_re=RE, print_file=File}) ->
-  FD = get_fd(File),
+  assert_dir(File),
   fun(F, A) ->
       Str=flat(F, A),
       case RE =:= "" orelse re:run(Str, RE) =/= nomatch of
-        true  -> io:fwrite(FD, "~s~n", [Str]);
+        true  -> io:fwrite(get_fd(File), "~s~n", [Str]);
         false -> ok
       end
   end.
 
-get_fd(FD) when is_atom(FD); is_pid(FD) ->
-  FD;
-get_fd("") ->
-  standard_io;
-get_fd(FN) ->
-  case file:open(FN, [write]) of
-    {ok, FD} -> FD;
-    _ -> throw({cannot_open, FN})
+-include_lib("kernel/include/file.hrl").
+-define(FILEINFO(T, A), #file_info{type = T, access = A}).
+
+assert_dir(File) ->
+  case filelib:ensure_dir(File) of
+    ok ->
+      case file:read_file_info(filename:dirname(File)) of
+        {ok, ?FILEINFO(directory, read_write)} -> ok;
+        {ok, ?FILEINFO(directory, write)} -> ok;
+        {ok, ?FILEINFO(T, A)} -> throw({file_error, {File, {T, A}}});
+        {error, R} ->  throw({file_error, {File, R}})
+      end;
+    {error, R} -> throw({file_error, {File, R}})
   end.
 
 fix_ts(MS, TS) ->
@@ -514,7 +520,6 @@ mfaf(I) ->
 put_recs(Recs) ->
   [put({Name, length(Fields)}, Fields) || {Name, Fields} <- Recs].
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% pack data into a proplist for target consumption
 %%% Proplist = list({Tag, Val})
@@ -525,6 +530,7 @@ put_recs(Recs) ->
 %%%         {file, File, Size, Count} |
 %%%         {ip, Port, Queue}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 pack(Cnf) ->
   Flags0 = [call, timestamp],
   {Flags, ASTs} = lists:foldl(fun chk_trc/2, {Flags0, []}, slist(Cnf#cnf.trc)),
@@ -596,6 +602,7 @@ slist(X) -> [X].
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the print_loop process
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 print_init(PrintFun) ->
   print_loop(PrintFun, 0, running).
 
@@ -610,6 +617,19 @@ maybe_exit(State, PrintFun, Acc) ->
   case State == stopping andalso process_info(self(), message_queue_len) of
     {_, 0} -> exit(PrintFun({meta, stop, dummy, {0, 0, 0, 0}}, Acc));
     _ -> ok
+  end.
+
+%% this is called from the default PrintFun
+get_fd("") ->
+  standard_io;
+get_fd(FN) ->
+  case get(redbug_fd) of
+    undefined ->
+      case file:open(FN, [write]) of
+        {ok, FD} -> put(redbug_fd, FD), FD;
+        _ -> throw({cannot_open, FN})
+      end;
+    FD -> FD
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
