@@ -14,10 +14,10 @@ err() {
 
 git remote -v | grep -q "git@github.com" || \
     err "git is redonly"
-(git push && git status) | grep "Your branch is up to date with 'origin/master'." || \
+(git push && git status) | grep "Your branch is up to date with 'origin/main'." || \
     err "git is dirty"
 rebar3 hex user whoami || \
-    err "no hex user"
+    err "no hex user. use 'rebar3 hex user auth'"
 
 APPSRC="$(find "$PWD/src" -name "*.app.src")"
 [ -z "$APPSRC" ] && usage
