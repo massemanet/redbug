@@ -172,13 +172,17 @@ stop() ->
     Pid -> Pid ! stop, stopped
   end.
 
-%% @equiv start(RTPs, [])
+%% @equiv start(RTPs, #{})
 start(RTPs) ->
-  start(RTPs, []).
+  start(RTPs, #{}).
 
-%% @spec start(RTPs::list(), Opts::map()) -> {Procs::integer(), Functions::integer()}
+
 %% @docfile "doc/start.edoc"
-start('send', Props)    -> start([send], Props);
+-type proplist() :: list({atom(), any()}).
+-type rtp() :: string() | 'send' | 'receive'.
+-type options() :: map() | proplist().
+-spec start(RTPs::list(RTP::rtp()) | RTP::rtp(), Opts::options()) -> {Procs::integer(), Functions::integer()}.
+start('send', Props)    -> start(['send'], Props);
 start('receive', Props) -> start(['receive'], Props);
 start(Trc, Props) when is_map(Props) ->
   start(Trc, maps:to_list(Props));
