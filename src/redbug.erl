@@ -179,7 +179,7 @@ start(RTPs) ->
 
 %% @docfile "doc/start.edoc"
 -type proplist() :: list({atom(), any()}).
--type rtp() :: string() | 'send' | 'receive'.
+-type rtp() :: atom() | string() | 'send' | 'receive'.
 -type options() :: map() | proplist().
 -spec start(RTPs::list(RTP::rtp()) | RTP::rtp(), Opts::options()) -> {Procs::integer(), Functions::integer()}.
 start('send', Props)    -> start(['send'], Props);
@@ -595,7 +595,8 @@ chk_trc('send', {Flags, Trc})    -> {['send'|Flags], Trc};
 chk_trc('receive', {Flags, Trc}) -> {['receive'|Flags], Trc};
 chk_trc(Trc, {Flags, ASTs})      -> {Flags, [mk_ast(Trc)|ASTs]}.
 
-mk_ast(Str) -> redbug_compiler:parse(Str).
+mk_ast(Str) ->
+  redbug_compiler:parse(Str).
 
 -define(is_string(Str), (Str=="" orelse (9=<hd(Str) andalso hd(Str)=<255))).
 

@@ -15,9 +15,9 @@
 -type ast() :: tuple().
 -type tokens() :: [{atom(), integer(), term()} | {atom(), integer()}].
 
--spec compile(atom() | binary() | list()) -> tp().
+-spec compile(atom() | binary() | string()) -> tp().
 compile(X) ->
-    try generate(parse(to_str(X)))
+    try generate(parse(X))
     catch
         exit:{scan_error, R}  -> exit({syntax_error, R});
         exit:{parse_error, R} -> exit({syntax_error, R});
@@ -34,17 +34,17 @@ generate(AST) ->
         exit:{gen_error, R}   -> exit({syntax_error, R})
     end.
 
--spec parse(string()) -> ast().
-parse(Str) ->
-    case catch redbug_parser:parse(scan(Str)) of
+-spec parse(atom()|binary()|string()) -> ast().
+parse(X) ->
+    case catch redbug_parser:parse(scan(X)) of
         {ok, AST}              -> AST;
         {error, {_, _, Error}} -> exit({parse_error, lists:flatten(Error)});
         {'EXIT', Error}        -> exit(Error)
     end.
 
--spec scan(string()) -> tokens().
-scan(Str) ->
-    case catch redbug_lexer:string(Str) of
+-spec scan(atom()|binary()|string()) -> tokens().
+scan(X) ->
+    case catch redbug_lexer:string(to_str(X)) of
         {ok, Tokens, _}                    -> Tokens;
         {error, {_, _, {illegal, Tok}}, _} -> exit({scan_error, "at: "++Tok});
         {error, {_, _, Error}, _}          -> exit({scan_error, Error});
