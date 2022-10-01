@@ -21,16 +21,13 @@ compile(X) ->
     catch
         exit:{scan_error, R}  -> exit({syntax_error, R});
         exit:{parse_error, R} -> exit({syntax_error, R});
-        exit:{gen_error, R}   -> exit({syntax_error, R});
-        exit:not_string       -> exit({syntax_error, "bad input"})
+        exit:{gen_error, R}   -> exit({syntax_error, R})
     end.
 
 -spec generate(ast()) -> tp().
 generate(AST) ->
     try gen(AST)
     catch
-        exit:{scan_error, R}  -> exit({syntax_error, R});
-        exit:{parse_error, R} -> exit({syntax_error, R});
         exit:{gen_error, R}   -> exit({syntax_error, R})
     end.
 
@@ -48,7 +45,8 @@ scan(X) ->
         {ok, Tokens, _}                    -> Tokens;
         {error, {_, _, {illegal, Tok}}, _} -> exit({scan_error, "at: "++Tok});
         {error, {_, _, Error}, _}          -> exit({scan_error, Error});
-        {'EXIT', R}                        -> exit({scan_error, {bad_input, R}})
+        {'EXIT', not_string}               -> exit({scan_error, "bad input"});
+        {'EXIT', Error}                    -> exit({scan_error, Error})
     end.
 
 to_str(Atom) when is_atom(Atom)  -> atom_to_list(Atom);
