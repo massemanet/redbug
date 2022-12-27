@@ -10,7 +10,7 @@
 -export(
    [help/0,
     start/1, start/2,
-    stop/0,
+    stop/0, stop/1,
     dtop/0, dtop/1]).
 
 -define(
@@ -167,7 +167,10 @@ dtop_cfg(Cfg) ->
 %% Stops a trace.
 %% @end
 stop() ->
-    case whereis(redbug) of
+  stop(erlang:node()).
+
+stop(Target) ->
+    case whereis(redbug_name(Target)) of
         undefined -> not_started;
         Pid -> Pid ! stop, stopped
     end.
@@ -192,20 +195,22 @@ start(Trc, Props) when is_map(Props) ->
 %%% the real start function!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start(Trc, Props) when is_list(Props) ->
-    case whereis(redbug) of
-        undefined ->
-            try
-                Cnf = assert_print_fun(make_cnf(Trc, [{shell_pid, self()}|Props])),
-                assert_cookie(Cnf),
-                register(redbug, spawn(fun() -> init(Cnf) end)),
-                maybe_block(Cnf, block_a_little())
-            catch
-                R   -> R;
-                C:R -> {oops, {C, R}}
-            end;
-        _ ->
-            redbug_already_started
-    end.
+  RedbugName = redbug_name(Props),
+  case whereis(RedbugName) of
+    undefined ->
+      try
+        Cnf = assert_print_fun(make_cnf(Trc, [{shell_pid, self()}|Props])),
+        assert_cookie(Cnf),
+        register(RedbugName, spawn(fun() -> init(Cnf) end)),
+        maybe_block(Cnf, block_a_little(RedbugName))
+      catch
+        R   -> R;
+        C:R -> {oops, {C, R}}
+      end
+      ;
+    _ ->
+      redbug_already_started
+  end.
 
 assert_print_fun(Cnf) ->
     case is_function(Cnf#cnf.print_fun) of
@@ -222,18 +227,20 @@ mk_print_fun(Cnf) ->
 assert_cookie(#cnf{cookie=''}) -> ok;
 assert_cookie(Cnf) -> erlang:set_cookie(Cnf#cnf.target, Cnf#cnf.cookie).
 
-block_a_little() ->
-    Ref = erlang:monitor(process, redbug),
-    receive
-        {running, NoP, NoF}  -> erlang:demonitor(Ref), {NoP, NoF};
-        {'DOWN', Ref, _, _, R} -> R
-    end.
+block_a_little(ProcessName) ->
+  Ref = erlang:monitor(process, ProcessName),
+  receive
+    {running, NoP, NoF}  -> erlang:demonitor(Ref), {ProcessName, NoP, NoF};
+    {'DOWN', Ref, _, _, R} -> R
+  end.
 
-maybe_block(#cnf{blocking=true}, {I, _}) when is_integer(I) -> block();
-maybe_block(_, R) -> R.
+maybe_block(#cnf{blocking=true}, {ProcessName, I, _}) when is_integer(I) ->
+    block(ProcessName);
+maybe_block(_, R) ->
+    R.
 
-block() ->
-    Ref = erlang:monitor(process, redbug),
+block(ProcessName) ->
+    Ref = erlang:monitor(process, ProcessName),
     receive
         {'DOWN', Ref, _, _, R} -> R
     end.
@@ -660,3 +667,9 @@ human(E, M) ->
 
 flat(Format, Args) ->
     lists:flatten(io_lib:fwrite(Format, Args)).
+
+redbug_name(Opts) when is_list(Opts) ->
+    Node = proplists:get_value(target, Opts, erlang:node()),
+    redbug_name(Node);
+redbug_name(Node) when is_atom(Node) ->
+    list_to_atom("redbug_" ++ atom_to_list(Node)).
