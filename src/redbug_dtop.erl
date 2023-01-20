@@ -71,7 +71,7 @@ sort_criteria() -> [cpu, mem, msgq].
          max_prcs = 3000}).
 
 -record(data,
-       {sys, prc, net, mnesia}).
+        {sys, prc, net, mnesia}).
 
 %%%---------------------------
 init() ->
@@ -186,13 +186,13 @@ pad_lines(#ld{lines = Lines}, Prcs) ->
 print_prc(#ld{fd = FD}, Prc) ->
     try
         io:fwrite(FD,
-               format(),
-               [pidf(to_list(pull_prc(pid, Prc))),
-                funf(reg(Prc)),
-                funf(pull_prc(current_function, Prc)),
-                human(pull_prc(message_queue_len, Prc)),
-                human(pull_prc(memory, Prc)),
-                to_list(pull_prc(cpu, Prc))])
+                  format(),
+                  [pidf(to_list(pull_prc(pid, Prc))),
+                   funf(reg(Prc)),
+                   funf(pull_prc(current_function, Prc)),
+                   human(pull_prc(message_queue_len, Prc)),
+                   human(pull_prc(memory, Prc)),
+                   to_list(pull_prc(cpu, Prc))])
     catch
         _:_ -> io:fwrite(FD, "~n", [])
     end.
@@ -498,7 +498,7 @@ init_ps() ->
      open_port({spawn, "/bin/sh"}, [stream]),
      "ps -o pid,utime,time,vsz,rss,majflt,minflt -p "++os:getpid()++"\n"}.
 
-%%% iostat -w1 -c2 -dC | tail -n1 | awk '{print $4,$5}' && ps -o pid,utime,time,vsz,rss,majflt,minflt -p 
+%%% iostat -w1 -c2 -dC | tail -n1 | awk '{print $4,$5}' && ps -o pid,utime,time,vsz,rss,majflt,minflt -p
 
 do_ps(Port, Cmd, OS) ->
     Data = get_ps_data(Port, Cmd),
