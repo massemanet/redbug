@@ -24,18 +24,34 @@ F0 = self
 F1 = abs|hd|length|node|round|size|tl|trunc
 F2 = element
 
+VAR = [A-Z_][A-Za-z0-9_]*
+STR = "([^"]|\\")*"
+INTR = ([2-9]|[12][0-9]|3[0-6])#[0-9]+
+INTC = \$[\s-~]
+INTI = -?[0-9]+
+
+ATOM = [a-z][A-Z0-9a-z_]*
+ATOMQ = '([^'|\\'])*'
+
+BINC = ({STR}|{INTR}|{INTC}|{INTI})(/[a-z]+|:[0-9]+)*
+BIN  = <<{WS}*({BINC}({WS}*,{WS}*{BINC})*)?{WS}*>>
+
+PID = <[0-9]+\.[0-9]+\.[0-9]+>
+REF = #Ref<[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+>
+PORT = #Port<[0-9]+\.[0-9]+>
+
 Rules.
 
 {WS}+ :
   skip_token.
 
-<[0-9]+\.[0-9]+\.[0-9]+> :
+{PID} :
   {token, {'pid', TokenLine, list_to_pid(TokenChars)}}.
 
-#Ref<[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+> :
+{REF} :
   {token, {'ref', TokenLine, list_to_ref(TokenChars)}}.
 
-#Port<[0-9]+\.[0-9]+> :
+{PORT} :
   {token, {'port', TokenLine, list_to_port(TokenChars)}}.
 
 ({S}) :
@@ -68,28 +84,28 @@ is_record :
 ({B2}) :
   {token, {'boolean_op2', TokenLine, to_atom(TokenChars)}}.
 
-\$[\s-~] :
+{INTC} :
   {token, {'int', TokenLine, char_to_int(TokenChars)}}.
 
-([2-9]|[12][0-9]|3[0-6])#[0-9]+ :
+{INTR} :
   {token, {'int', TokenLine, radix_to_int(TokenChars)}}.
 
--?[0-9]+ :
+{INTI} :
   {token, {'int', TokenLine, int_to_int(TokenChars)}}.
 
-[A-Z_][A-Za-z0-9_]* :
+{VAR} :
   {token, {'variable', TokenLine, TokenChars}}.
 
-"([^"]|\\")*" :
+{STR} :
   {token, {'string', TokenLine, trim(TokenChars)}}.
 
-[a-z][A-Z0-9a-z_]* :
+{ATOM} :
   {token, {'atom', TokenLine, to_atom(TokenChars)}}.
 
-'([^'|\\'])*' :
+{ATOMQ} :
   {token, {'atom', TokenLine, to_atom(trim(TokenChars))}}.
 
-<<("([^"]|\\")*"|[^>]*)*>> :
+{BIN} :
   {token, {'bin', TokenLine, to_binary(TokenChars)}}.
 
 Erlang code.

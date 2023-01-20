@@ -54,8 +54,12 @@ x_test_() ->
       unit("x:c(Aw)when [")),
 
    ?_assertEqual(
-      {syntax_error,"malformed_binary: <<1:3,_:5>>"},
+      {syntax_error,"syntax error before: '<'"},
       unit("erlang:binary_to_list(<<1:3,_:5>>)")),
+
+   ?_assertEqual(
+      {syntax_error,"syntax error before: '<'"},
+      unit("erlang:binary_to_list(<<V>>)")),
 
    ?_assertEqual(
       {syntax_error,"syntax error before: '++'"},
@@ -553,7 +557,31 @@ x_test_() ->
      {{e,f,1},
       [{['$1'],[{'==','$1',{self}}],[]}],
       [local]},
-     unit("e:f(Pid) when Pid==self()"))].
+     unit("e:f(Pid) when Pid==self()")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<1:3>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<1:3>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'orelse',
+                 {'orelse',
+                  {'==','$1',<<>>},
+                  {'==','$1',<<>>}},
+                 {'==','$1',<<49,16,98>>}}],[]}],
+      [local]},
+      unit('m:f(A) when A == <<"">>; A == <<"">>; A == <<$a:3, $1:5, "", 16#10, "b">>'))
+
+].
 
 unit(Str) ->
   try
