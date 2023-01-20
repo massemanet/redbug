@@ -597,7 +597,25 @@ x_test_() ->
      {{m,f,1},
       [{['$1'],[{'==','$1',<<1:3>>}],[]}],
       [local]},
-     unit("m:f(A) when A== <<1:3/unsigned-big-integer-unit:1>>"))
+     unit("m:f(A) when A== <<1:3/unsigned-big-integer-unit:1>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<1>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<1/unsigned-big-integer>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<"hello">>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<\"hello\"/utf8>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<"\">>">>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<\"\\\">>\"/utf8>>"))
 ].
 
 unit(Str) ->

@@ -33,7 +33,7 @@ INTI = -?[0-9]+
 ATOM = [a-z][A-Z0-9a-z_]*
 ATOMQ = '([^'|\\'])*'
 
-BINC = ({STR}|{INTR}|{INTC}|{INTI})(/[a-z-]+|:[0-9]+)*
+BINC = ({STR}|{INTR}|{INTC}|{INTI})([:/][0-9a-z:/-]+)?
 BIN  = <<{WS}*(({BINC}({WS}*,{WS}*{BINC})*){WS}*)?>>
 
 PID = <[0-9]+\.[0-9]+\.[0-9]+>
