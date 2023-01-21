@@ -78,11 +78,11 @@ x_test_() ->
       unit("a:b(X,Y)when is_record(X,rec) and (Y==0)")),
 
    ?_assertEqual(
-     {syntax_error,"syntax error before: '#'"},
+     {syntax_error,"malformed_int: 222#22"},
      unit("a:b([222#22|C])")),
 
    ?_assertEqual(
-     {syntax_error,"syntax error before: '#'"},
+     {syntax_error,"malformed_int: 1#223"},
      unit("a:b([1#223|C])")),
 
    ?_assertEqual(
@@ -573,6 +573,30 @@ x_test_() ->
 
    ?_assertEqual(
      {{m,f,1},
+      [{['$1'],[{'==','$1',<<1:3>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<1:10#3>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<7:3>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<-1:3>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<7:3>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<-10#1:3>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<1:32>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<1:$ >>")),
+
+   ?_assertEqual(
+     {{m,f,1},
       [{['$1'],[{'orelse',
                  {'orelse',
                   {'==','$1',<<>>},
@@ -591,7 +615,19 @@ x_test_() ->
      {{m,f,1},
       [{['$1'],[{'==','$1',<<1:3>>}],[]}],
       [local]},
+     unit("m:f(A) when A== <<1:4#3/integer>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<1:3>>}],[]}],
+      [local]},
      unit("m:f(A) when A== <<1:3/unit:1>>")),
+
+   ?_assertEqual(
+     {{m,f,1},
+      [{['$1'],[{'==','$1',<<1:3>>}],[]}],
+      [local]},
+     unit("m:f(A) when A== <<1:3/unit:2#1>>")),
 
    ?_assertEqual(
      {{m,f,1},

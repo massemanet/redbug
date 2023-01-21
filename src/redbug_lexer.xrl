@@ -26,14 +26,16 @@ F2 = element
 
 VAR = [A-Z_][A-Za-z0-9_]*
 STR = "([^"]|\\")*"
-INTR = ([2-9]|[12][0-9]|3[0-6])#[0-9]+
 INTC = \$[\s-~]
 INTI = -?[0-9]+
+INTR = {INTI}#[0-9a-zA-Z]+
+INT  = ({INTI}|{INTR}|{INTC})
 
 ATOM = [a-z][A-Z0-9a-z_]*
 ATOMQ = '([^'|\\'])*'
 
-BINC = ({STR}|{INTR}|{INTC}|{INTI})([:/][0-9a-z:/-]+)?
+BINTS = {ATOM}(:({INTI}|{INTR}))?
+BINC = ({STR}|{INT})(:{INT})?(/{BINTS}(-{BINTS})*)?
 BIN  = <<{WS}*(({BINC}({WS}*,{WS}*{BINC})*){WS}*)?>>
 
 PID = <[0-9]+\.[0-9]+\.[0-9]+>
