@@ -474,8 +474,9 @@ mk_unreg_name(P) ->
     end.
 
 ts(Nw) ->
-    {_, {H, M, S}} = calendar:now_to_local_time(Nw),
+    {_, {H, M, S}} = calendar:now_to_universal_time(Nw),
     {H, M, S, element(3, Nw)}.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% records. records are identified by the {module name, record name} tuple.
