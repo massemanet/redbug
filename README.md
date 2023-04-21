@@ -20,7 +20,7 @@ ignored), and the files can only be read by special tools (such as
 
 DOCUMENTATION
 
-Run `reba3 edoc` or check the online docs at [hexdocs](https://hexdocs.pm/redbug/).
+Run `rebar3 edoc` or check the online docs at [hexdocs](https://hexdocs.pm/redbug/).
 
 EXAMPLES
 
