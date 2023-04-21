@@ -21,15 +21,18 @@ The below is a very small version of `redbug`;
 
 ```erlang
 RDBG = fun(MFA, Opts) ->
-  TIME = fun(Offset) -> erlang:system_time(millisecond)+Offset end,
+  TIME = fun(Offset) ->
+    erlang:system_time(millisecond)+Offset
+  end,
   TRC = fun(G, M, Msgs, E) ->
     TO = -TIME(-E),
+    [exit({time, M}) || TO =< 0],
     [exit({msgs, M}) || Msgs =< M],
     receive X -> io:fwrite("~p~n", [X]), G(G, M+1, Msgs, E)
     after TO -> exit({time, M})
     end
   end,
-  TRC0 = fun(Time,Msgs,Flags) ->
+  TRC0 = fun(Time, Msgs, Flags) ->
     erlang:trace(all, true, [call, timestamp|Flags]),
     io:fwrite("done, ~p~n", [catch TRC(TRC, 0, Msgs, Time)])
   end,
@@ -81,7 +84,22 @@ RDBG({gopnic_grpc_client,do_from_outside, ['_', #{their_tid => '$1', operation =
 
 Sequential trace
 ```
-RDBG({leper,'_','_'}, #{flags=>[arity], msgs=>100, trigger => {gopnic_grpc_client,do_from_outside, ['_', #{operation => send_routing_info_for_sm, ppi => m3ua}, envoy_outgoing, '_']}}).
+RDBG({pamp,'_','_'},
+     #{flags => [arity],
+       msgs => 100,
+       trigger => {gopnic_grpc_client,do_from_outside, [
+           {ok,#{imsi => #{value => '$1'}},'_'},
+           #{operation => send_routing_info_for_sm, ppi => m3ua},
+           envoy_outgoing,
+           '_']},
+       trigger_body => [{set_seq_token, label, '$1'},
+                        {message,{{set_token, {get_seq_token}}}}]}).
+```
+
+```erlang
+redbug:start('pamp',
+     #{msgs => 100,
+       trigger => "gopnic_grpc_client:do_from_outside({ok, #{imsi => #{value => IMSI}},'_'}, #{operation => send_routing_info_for_sm, ppi => m3ua}, envoy_outgoing, '_')"}).
 ```
 
 To test this, we use we set up three processes (A, B, and C) that
