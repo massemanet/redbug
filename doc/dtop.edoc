@@ -1,7 +1,7 @@
 @doc
 Starts/stops (toggles) dtop.
 
-`Cfg' is a map. The allowd tags are `max_procs' and `sort'.
+`Cfg' is a map. The allowed tags are `max_procs' and `sort'.
 
 If the number of processes is larger than `max_procs', dtop will
 not print any process info, just the header. This is to avoid

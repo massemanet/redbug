@@ -68,7 +68,7 @@ A function call is printed like this;
 
 `% erlang:demonitor(#Ref<0.2419348116.2832203778.13012>)'
 
-and a return from a funtion like this;
+and a return from a function like this;
 
 `% erlang:demonitor/1 -> true'
 
