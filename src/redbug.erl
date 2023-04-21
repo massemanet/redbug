@@ -474,6 +474,7 @@ mk_out(#cnf{print_re=RE, print_file=File}) ->
 -include_lib("kernel/include/file.hrl").
 -define(FILEINFO(T, A), #file_info{type = T, access = A}).
 
+assert_dir([]) -> ok;
 assert_dir(File) ->
   case filelib:ensure_dir(File) of
     ok ->
