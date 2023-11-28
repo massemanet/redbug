@@ -186,7 +186,7 @@ start(RTPs) ->
 -type options() :: map() | proplist().
 -type rtps() :: list(rtp()) | rtp().
 
--spec start(RTPs::rtps(), Opts::options()) -> {Procs::integer(), MFAs::integer()}.
+-spec start(RTPs::rtps(), Opts::options()) -> {Name::atom(), Procs::integer(), MFAs::integer()}.
 start('send', Props)    -> start(['send'], Props);
 start('receive', Props) -> start(['receive'], Props);
 start(Trc, Props) when is_map(Props) ->
