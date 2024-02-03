@@ -3,7 +3,7 @@ Header "%% @hidden".
 Nonterminals
   rtp
   mfa module function args arity
-  terms term list tuple
+  terms term list tuple var
   atomic
   record map record_fields record_field map_fields map_field
   guards guard guard_value test
@@ -13,7 +13,7 @@ Terminals
   '(' ')' '[' ']' '{' '}'
   '->' 'when' ':' ';' '#' ',' '=' ':=' '=>' '#{' '/' '|' '++'
   'pid' 'ref' 'port'
-  'variable' 'bin' 'int' 'atom' 'string'
+  'wildcard' 'variable' 'bin' 'int' 'atom' 'string'
   'comparison_op' 'arithmetic_op' 'boolean_op1' 'boolean_op2'
   'type_test1' 'type_isrec' 'bif0' 'bif1' 'bif2'.
 
@@ -37,10 +37,11 @@ mfa -> module ':' function               : {'$1', '$3', '_'}.
 mfa -> module ':' function '/' arity     : {'$1', '$3', '$5'}.
 mfa -> module ':' function '(' args ')'  : {'$1', '$3', '$5'}.
 
+module -> var    : {module, '_'}.
 module -> atomic : class(module, '$1').
 
-function -> 'variable'   : {function, '_'}.
-function -> atomic       : class(function, '$1').
+function -> var  : {function, '_'}.
+function -> atomic : class(function, '$1').
 
 atomic -> 'atom'       : e13('$1').
 atomic -> 'bif0'       : class(atom, '$1').
@@ -57,22 +58,22 @@ terms -> '$empty'       : [].
 terms -> term           : ['$1'].
 terms -> terms ',' term : '$1' ++ ['$3'].
 
-term -> 'variable' : e13('$1').
-term -> 'bin'      : e13('$1').
-term -> 'int'      : e13('$1').
-term -> 'pid'      : e13('$1').
-term -> 'ref'      : e13('$1').
-term -> 'port'     : e13('$1').
-term -> atomic     : '$1'.
-term -> list       : {list, '$1'}.
-term -> tuple      : {tuple, '$1'}.
-term -> record     : {record, '$1'}.
-term -> map        : {map, '$1'}.
+term -> 'bin'  : e13('$1').
+term -> 'int'  : e13('$1').
+term -> 'pid'  : e13('$1').
+term -> 'ref'  : e13('$1').
+term -> 'port' : e13('$1').
+term -> var    : '$1'.
+term -> atomic : '$1'.
+term -> list   : {list, '$1'}.
+term -> tuple  : {tuple, '$1'}.
+term -> record : {record, '$1'}.
+term -> map    : {map, '$1'}.
 
 list -> 'string'               : [{'int', I} || I <- e3('$1')].
 list -> '[' terms ']'          : '$2'.
 list -> '[' terms '|' term ']' : mk_cons('$2', '$4').
-list -> list '++' 'variable'   : mk_cons('$1', e13('$3')).
+list -> list '++' var          : mk_cons('$1', '$3').
 list -> list '++' list         : mk_cons('$1', '$3').
 
 tuple -> '{' terms '}' : '$2'.
@@ -107,11 +108,14 @@ guard -> 'boolean_op1' test      : {e13('$1'), ['$2']}.
 guard -> test 'boolean_op2' test : {e13('$2'), ['$1', '$3']}.
 guard -> test                    : '$1'.
 
-test -> '(' test ')'                               : '$2'.
-test -> 'type_test1' '(' 'variable' ')'            : {e13('$1'), [e13('$3')]}.
-test -> 'type_isrec' '(' record ',' 'variable' ')' : {e13('$1'), [{record, '$3'}, e13('$5')]}.
-test -> guard_value 'comparison_op' guard_value    : {e13('$2'), ['$1', '$3']}.
-test -> guard_value                                : '$1'.
+test -> '(' test ')'                            : '$2'.
+test -> 'type_test1' '(' var ')'                : {e13('$1'), ['$3']}.
+test -> 'type_isrec' '(' record ',' var ')'     : {e13('$1'), [{record, '$3'}, '$5']}.
+test -> guard_value 'comparison_op' guard_value : {e13('$2'), ['$1', '$3']}.
+test -> guard_value                             : '$1'.
+
+var -> 'variable' : class(var, '$1').
+var -> 'wildcard' : class(var, '$1').
 
 guard_value -> '(' guard_value ')'                        : '$2'.
 guard_value -> 'bif0' '(' ')'                             : {e13('$1'), []}.

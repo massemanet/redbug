@@ -38,6 +38,8 @@
              wrap_count,
              wrap_size}).
 
+-include("redbug_dbg.hrl").
+
 %%% runs on host %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% unless the target node has up to date versions of redbug code, we
 %% send it over and load it. Then we start the target process.
@@ -117,8 +119,8 @@ init(LD0) ->
   unset_tps(),
   LD = ?pipe(LD0,
              codegen,
-             maybe_load_mods,
              expand_underscores,
+             maybe_load_mods,
              fix_procs,
              consumer),
   [send_meta({recs, get_rec_fields(Mod)}) || Mod <- LD#ld.records],
@@ -143,7 +145,7 @@ maybe_load_mod({{M, _, _}, _, _} = Rtp, O) ->
   try
     case code:which(M) of
       preloaded         -> ok;
-      non_existing      -> throw(non_existing_module);
+      non_existing      -> throw({non_existing_module, M});
       L when is_list(L) -> [c:l(M) || false =:= code:is_loaded(M)]
     end,
     [Rtp|O]
@@ -152,6 +154,7 @@ maybe_load_mod({{M, _, _}, _, _} = Rtp, O) ->
   end.
 
 expand_underscores(LD) ->
+  LD,
   ?fold_field(LD, trace_patterns, fun expand_underscore/2, []).
 
 expand_underscore({{'_', '_', '_'}, MatchSpec, Flags}, O) ->
@@ -164,7 +167,7 @@ expand_underscore(ExpandedRtp, O) ->
   [ExpandedRtp|O].
 
 mk_expand_module(MatchSpec, Flags) ->
-  fun(M, A) -> expand_underscore({{M, '_', '_'}, MatchSpec, Flags}, A) end.
+  fun(M, A) -> lists:foldl(mk_expand_function(M, MatchSpec, Flags), A, globals(M)) end.
 
 mk_expand_function(M, MatchSpec, Flags) ->
   fun({F, Ari}, A) -> expand_underscore({{M, F, Ari}, MatchSpec, Flags}, A) end.
