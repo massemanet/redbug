@@ -616,6 +616,9 @@ prcinfo(heap_size, _) ->
 prcinfo(total_heap_size, _) ->
     {fun(Val) -> 8*Val end,
      0};
+prcinfo(reductions, _) ->
+    {fun(Val) -> Val end,
+     0};
 prcinfo(last_calls, Pid) ->
     {fun(Val) ->
              case Val of
