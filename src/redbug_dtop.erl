@@ -782,7 +782,7 @@ mnesia() ->
 %%%_* mnesia stats ============================================================
 
 -type table_name()  :: dets:tab_name() | ets:tab().
--type table_type()  :: dets | ets | remote_only.
+-type table_type()  :: dets | ets | undefined.
 -type bytes()       :: non_neg_integer().
 -type count()       :: non_neg_integer().
 
@@ -848,7 +848,7 @@ object_count(Table) ->
     object_count(Table, get_term_storage_type(Table)).
 
 -spec object_count(table_name(), table_type()) -> count() | undefined.
-object_count(_Table, remote_only) -> undefined;
+object_count(_Table, undefined)   -> undefined;
 object_count(Table,  dets)        -> dets_object_count(Table);
 object_count(Table,  ets)         -> ets_object_count(Table).
 
@@ -857,17 +857,18 @@ table_size(Table) ->
     table_size(Table, get_term_storage_type(Table)).
 
 -spec table_size(table_name(), table_type()) -> bytes() | undefined.
-table_size(_Table, remote_only) -> undefined;
+table_size(_Table, undefined)   -> undefined;
 table_size(Table,  dets)        -> dets_size(Table);
 table_size(Table,  ets)         -> ets_size(Table).
 
 -spec get_term_storage_type(table_name()) -> table_type().
 get_term_storage_type(Table) ->
     case mnesia:table_info(Table, storage_type) of
+        disc_copies      -> ets;
         disc_only_copies -> dets;
-        undefined        -> remote_only;
-        _                -> ets
+        _                -> undefined
     end.
+
 -spec dets_size(dets:tab_name()) -> bytes().
 dets_size(Table) ->
     dets:info(Table, file_size).
