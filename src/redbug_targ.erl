@@ -82,11 +82,20 @@ ftime([_|T]) -> ftime(T).
 mk_ld(Props) ->
   #ld{host_pid = self(),
       time     = proplists:get_value(time, Props),
-      flags    = proplists:get_value(flags, Props),
+      flags    = [timestamp()|proplists:get_value(flags, Props)],
       asts     = proplists:get_value(asts, Props),
       procs    = proplists:get_value(procs, Props),
       records  = proplists:get_value(records, Props),
       where    = proplists:get_value(where, Props)}.
+
+timestamp() ->
+  try
+    erlang:trace(all,true,[cpu_timestamp]),
+    erlang:trace(all,false,[cpu_timestamp]),
+    cpu_timestamp
+  catch
+    _:_ -> timestamp
+  end.
 
 do_start(Node, LD) ->
   case Node =:= nonode@nohost orelse net_adm:ping(Node) =:= pong of
@@ -252,7 +261,9 @@ is_new_pidspec(Ps) ->
   lists:member(new, Ps).
 
 is_message_trace(Flags) ->
-  (lists:member(send, Flags) orelse lists:member('receive', Flags)).
+  lists:member('garbage_collection', Flags) orelse
+    lists:member('send', Flags) orelse
+    lists:member('receive', Flags).
 
 start_trace(LD) ->
   Flags = [{tracer, LD#ld.tracer}|LD#ld.flags],

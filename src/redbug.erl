@@ -182,10 +182,11 @@ start(RTPs) ->
 
 %% @spec start(RTPs::list(), Opts::map()) -> {Procs::integer(), Functions::integer()}
 %% @docfile "doc/start.edoc"
-start('send', Props)    -> start([send], Props);
+start('send', Props)    -> start(['send'], Props);
 start('receive', Props) -> start(['receive'], Props);
-start(Trc, Props) when is_map(Props) ->
-  start(Trc, maps:to_list(Props));
+start('profile', Props) -> start(['profile', "_"], Props);
+start(Trc, Props) when is_map(Props) -> start(Trc, maps:to_list(Props));
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the real start function!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -197,13 +198,11 @@ start(Trc, Props) when is_list(Props) ->
         Cnf = assert_print_fun(make_cnf(Trc, [{shell_pid, self()}|Props])),
         assert_cookie(Cnf),
         register(RedbugName, spawn(fun() -> init(Cnf) end)),
-      
         maybe_block(Cnf, block_a_little(RedbugName))
       catch
         R   -> R;
         C:R -> {oops, {C, R}}
-      end
-      ;
+      end;
     _ ->
       redbug_already_started
   end.
@@ -540,7 +539,7 @@ put_recs(Recs) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 pack(Cnf) ->
-  Flags0 = [call, timestamp],
+  Flags0 = [call],
   {Flags, ASTs} = lists:foldl(fun chk_trc/2, {Flags0, []}, slist(Cnf#cnf.trc)),
   [{time, chk_time(Cnf#cnf.time)},
    {flags, maybe_arity(Cnf, maybe_trace_child(Cnf, Flags))},
@@ -595,11 +594,15 @@ chk_records(What) -> throw({bad_module_name, What}).
 chk_msgs(Msgs) when is_integer(Msgs) -> Msgs;
 chk_msgs(X) -> throw({bad_msgs, X}).
 
+chk_trc('profile', {_, Trc})     -> {proflags(), Trc};
 chk_trc('send', {Flags, Trc})    -> {['send'|Flags], Trc};
 chk_trc('receive', {Flags, Trc}) -> {['receive'|Flags], Trc};
 chk_trc(Trc, {Flags, ASTs})      -> {Flags, [mk_ast(Trc)|ASTs]}.
 
 mk_ast(Str) -> redbug_compiler:parse(Str).
+
+proflags() ->
+  [procs, running, garbage_collection, set_on_spawn, call, return_to, arity].
 
 -define(is_string(Str), (Str=="" orelse (9=<hd(Str) andalso hd(Str)=<255))).
 
