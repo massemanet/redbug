@@ -62,13 +62,13 @@ By default, the printer function writes a header line that looks like this;
 `% 18:38:50 <0.188.0>({erlang,apply,2})'
 
 A timestamp, the pid, and the process name; the registered name if it
-exists, otherwise the inti function of the process.
+exists, otherwise the init function of the process.
 
 A function call is printed like this;
 
 `% erlang:demonitor(#Ref<0.2419348116.2832203778.13012>)'
 
-and a return from a funtion like this;
+and a return from a function like this;
 
 `% erlang:demonitor/1 -> true'
 

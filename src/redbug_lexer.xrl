@@ -77,6 +77,9 @@ is_record :
 -?[0-9]+ :
   {token, {'int', TokenLine, int_to_int(TokenChars)}}.
 
+_ :
+  {token, {'wildcard', TokenLine, "_"}}.
+
 [A-Z_][A-Za-z0-9_]* :
   {token, {'variable', TokenLine, TokenChars}}.
 

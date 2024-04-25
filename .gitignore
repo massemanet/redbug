@@ -1,5 +1,6 @@
 *.crashdump
 *~
+.DS_Store
 .\#*
 /_build/
 /doc/

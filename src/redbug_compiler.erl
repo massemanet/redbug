@@ -3,6 +3,8 @@
 -module(redbug_compiler).
 -export([compile/1, generate/1, parse/1, scan/1]).
 
+-include("redbug_dbg.hrl").
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API
 
@@ -81,7 +83,8 @@ mk_mfa({M, F, As}) ->
     {Arity, Args, Ctxt} = mk_args(As, Fun),
     {Mod, Fun, Arity, Args, Ctxt, Flags}.
 
-mk_mod({module, Mod}) -> Mod.
+mk_mod({module, Mod}) ->
+    Mod.
 
 mk_fun('_') ->
     {'_', [local]};
@@ -137,8 +140,8 @@ lift({port, Value}, Ctxt) -> {Value, Ctxt};
 lift({pid,  Value}, Ctxt) -> {Value, Ctxt};
 lift({ref,  Value}, Ctxt) -> {Value, Ctxt};
 %% variables
-lift({variable, "_"}, Ctxt) -> {'_', Ctxt};
-lift({variable, Var}, Ctxt) -> lift_var(Var, Ctxt);
+lift({var, "_"}, Ctxt) -> {'_', Ctxt};
+lift({var, Var}, Ctxt) -> lift_var(Var, Ctxt);
 %% composite terms
 lift({tuple,  Es},  Ctxt) -> lift_tuple(Es, Ctxt);
 lift({list,   Es},  Ctxt) -> lift_list(Es, Ctxt);

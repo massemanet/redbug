@@ -13,7 +13,7 @@ err() {
 }
 
 git remote -v | grep -q "git@github.com" || \
-    err "git is redonly"
+    err "git is readonly"
 (git push && git status) | grep "Your branch is up to date with 'origin/master'." || \
     err "git is dirty"
 rebar3 hex user whoami || \

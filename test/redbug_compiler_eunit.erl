@@ -126,6 +126,12 @@ x_test_() ->
       unit(erlang)),
 
    ?_assertEqual(
+      {{'_','_','_'},
+       [{'_',[],[]}],
+       [local]},
+      unit("_")),
+
+   ?_assertEqual(
       {{a,'_','_'},
        [{'_',[{'=/=',{element,1,'$_'},b}],[]}],
        [local]},
