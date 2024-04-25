@@ -7,13 +7,13 @@
 
 t_0_test() ->
   Filename = "redbug0.txt",
-  {_, _, _} = redbug:start("lists:sort", [{print_file, Filename}, {print_time_unit, millisecond}, debug]),
+  {_, _, _} = redbug:start("lists:sort", [{print_file, Filename}, print_msec, debug]),
   [1, 2, 3] = lists:sort([3, 2, 1]),
   timer:sleep(100),
   redbug:stop(),
   timer:sleep(100),
   maybe_show(Filename),
-  TS = re:split(get_line_seg(Filename,1,2),"[:.]"),
+  TS = re:split(get_line_seg(Filename, 1, 2), "[:.]"),
   ?assertEqual(<<"lists:sort([3,2,1])">>,
                get_line_seg(Filename, 2, 2)),
   ?assertEqual(4,
