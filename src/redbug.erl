@@ -306,20 +306,14 @@ dtop() ->
     dtop(#{}).
 
 dtop(Cfg) ->
-    try
-        redbug_dtop:start(),
-        dtop_cfg(Cfg)
-    catch
-        exit:already_started ->
+    case redbug_dtop:start() of
+        true -> redbug_dtop:cfg(Cfg);
+        already_started ->
             case maps:size(Cfg) of
                 0 -> redbug_dtop:stop();
-                _ -> dtop_cfg(Cfg)
+                _ -> redbug_dtop:cfg(Cfg)
             end
     end.
-
-dtop_cfg(Cfg) ->
-    [redbug_dtop:sort(S) || (S = maps:get(sort, Cfg, "")) =/= ""],
-    [redbug_dtop:max_prcs(M) || (M = maps:get(max_procs, Cfg, "")) =/= ""].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API from erlang shell
@@ -359,7 +353,7 @@ start(Trc, Props) when is_list(Props) ->
                 register(RedbugName, spawn(fun() -> init(Cnf) end)),
                 maybe_block(Cnf, block_a_little(RedbugName))
             catch
-                R -> R;
+                throw:R -> R;
                 C:R -> {oops, {C, R}}
             end;
         _ ->
