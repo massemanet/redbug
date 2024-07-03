@@ -2,7 +2,7 @@
 -author('Mats Cronqvist').
 
 -export(
-   [fold/3]).
+        [fold/3]).
 
 -record(state,
         {fn,
@@ -24,7 +24,7 @@ fold(Fun, Acc, File) ->
 
 fold(#state{state = reading, ptr = Ptr, fn = Fun, acc = Acc} = Z) ->
     case Z#state.chunk of
-        <<_:Ptr/binary, 0, S:32/integer, X:S/binary, _/binary>> -> 
+        <<_:Ptr/binary, 0, S:32/integer, X:S/binary, _/binary>> ->
             fold(Z#state{ptr = Ptr+5+S, acc = Fun(X, Acc), msgs = Z#state.msgs+1});
         _ ->
             fold(read(Z))
@@ -38,7 +38,7 @@ files(F) ->
     case {filelib:is_regular(F), filelib:is_dir(F)} of
         {true, false} -> [F];
         {false, true} -> filelib:wildcard("*.trc", F);
-        {false, false} -> filelib:wildcard(F++"*.trc")                
+        {false, false} -> filelib:wildcard(F++"*.trc")
     end.
 
 read(#state{state = eof, files = []} = Z) ->
