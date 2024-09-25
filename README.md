@@ -69,7 +69,3 @@ consequence of tail call optimization.)
       %   shell:exprs/7 
       %   shell:eval_exprs/7 
       %   shell:eval_loop/3 
-
-      % 18:32:54 <0.188.0>({erlang,apply,2})
-      % erlang:demonitor/1 -> true
-      redbug done, msg_count - 1

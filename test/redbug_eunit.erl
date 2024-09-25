@@ -1,7 +1,7 @@
-%% -*- mode: erlang; erlang-indent-level: 2 -*-
-
 -module('redbug_eunit').
 -author('mats cronqvist').
+
+-dialyzer(no_improper_lists).
 
 -include_lib("eunit/include/eunit.hrl").
 

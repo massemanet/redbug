@@ -1,4 +1,3 @@
-%%% -*- erlang-indent-level: 2 -*-
 %%%-------------------------------------------------------------------
 %%% File    : redbg.erl
 %%% Author  : Mats Cronqvist <masse@cronqvi.st>
@@ -33,38 +32,38 @@
 -record(cnf,
         {
          %% general
-         time         = 15000,       % stop trace after this time [ms]
-         msgs         = 10,          % stop trace after this # msgs [unit]
-         target       = node(),      % target node
-         cookie       = '',          % target node cookie
-         blocking     = false,       % run blocking; return a list of msgs
-         procs        = all,         % list of procs (or 'all')
-         max_queue    = 5000,        % max # of msgs before suicide
-         max_msg_size = 50000,       % max message size before suicide
-         debug        = false,       % big error messages
-         trace_child  = false,       % children gets traced (set_on_spawn)
-         arity        = false,       % arity instead of args
-         discard      = false,       % discard messages (when counting)
+         time            = 15000,  % stop trace after this time [ms]
+         msgs            = 10,     % stop trace after this # msgs [unit]
+         target          = node(), % target node
+         cookie          = '',     % target node cookie
+         blocking        = false,  % run blocking; return a list of msgs
+         procs           = all,    % list of procs (or 'all')
+         max_queue       = 5000,   % max # of msgs before suicide
+         max_msg_size    = 50000,  % max message size before suicide
+         debug           = false,  % big error messages
+         trace_child     = false,  % children gets traced (set_on_spawn)
+         arity           = false,  % arity instead of args
+         discard         = false,  % discard messages (when counting)
          %% print-related
-         buffered     = false,       % output buffering
-         records      = [],          % list of module names to get records from
-         print_calls  = true,        % print calls
-         print_file   = "",          % file to print to (standard_io)
-         print_msec   = false,       % for backwards compatibility; use print_time_unit => millisecond
-         print_time_unit = second,   % Time unit to use in the timestamps
-         print_depth  = 999999,      % Limit for "~P" formatting depth
-         print_re     = "",          % regexp that must match to print
-         print_return = true,        % print return value
-         print_fun    = '',          % custom print handler
+         buffered        = false,  % output buffering
+         records         = [],     % list of module names to get records from
+         print_calls     = true,   % print calls
+         print_file      = "",     % file to print to (standard_io)
+         print_msec      = false,  % same as print_time_unit => millisecond
+         print_time_unit = second, % Time unit to use in the timestamps
+         print_depth     = 999999, % Limit for "~P" formatting depth
+         print_re        = "",     % regexp that must match to print
+         print_return    = true,   % print return value
+         print_fun       = '',     % custom print handler
          %% trc file-related
-         file         = "",          % file to write trace msgs to
-         file_size    = 1,           % file size (per file [Mb])
-         file_count   = 8,           % number of files in wrap log
+         file       = "",          % file to write trace msgs to
+         file_size  = 1,           % file size (per file [Mb])
+         file_count = 8,           % number of files in wrap log
          %% internal
-         trc          = [],          % cannot be set by user
-         shell_pid    = [],          % cannot be set by user
-         print_pid    = [],          % cannot be set by user
-         trc_pid      = []           % cannot be set by user
+         trc             = [],     % cannot be set by user
+         shell_pid       = [],     % cannot be set by user
+         print_pid       = [],     % cannot be set by user
+         trc_pid         = []      % cannot be set by user
         }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -104,36 +103,37 @@ help() ->
     , "  ets:lookup(T, hostname) when is_integer(T) -> stack"
     , ""
     , "Opts: list({Opt, Val})"
+    , ""
     , "  general opts:"
-    , "time         (15000)       stop trace after this many ms"
-    , "msgs         (10)          stop trace after this many msgs"
-    , "target       (node())      node to trace on"
-    , "cookie       (host cookie) target node cookie"
-    , "blocking     (false)       block start/2, return a list of messages"
-    , "arity        (false)       print arity instead of arg list"
-    , "trace_child  (false)       children gets traced (set_on_spawn)"
-    , "records      ([])          list of module names to get records from"
-    , "buffered     (false)       buffer messages till end of trace"
-    , "discard      (false)       discard messages (when counting)"
-    , "max_queue    (5000)        fail if internal queue gets this long"
-    , "max_msg_size (50000)       fail if seeing a msg this big"
-    , "procs        (all)         (list of) Erlang process(es)"
-    , "                             all|pid()|atom(RegName)|{pid, I2, I3}"
+    , "time         (15000)          stop trace after this many ms"
+    , "msgs         (10)             stop trace after this many msgs"
+    , "target       (node())         node to trace on"
+    , "cookie       (host cookie)    target node cookie"
+    , "blocking     (false)          block start/2, return a list of messages"
+    , "arity        (false)          print arity instead of arg list"
+    , "trace_child  (false)          children gets traced (set_on_spawn)"
+    , "records      ([])             list of module names to get records from"
+    , "buffered     (false)          buffer messages till end of trace"
+    , "discard      (false)          discard messages (when counting)"
+    , "max_queue    (5000)           fail if internal queue gets this long"
+    , "max_msg_size (50000)          fail if seeing a msg this big"
+    , "procs        (all)            (list of) Erlang process(es)"
+    , "                                all | pid() | atom(RegName) | {pid, I2, I3}"
     , "  print-related opts"
-    , "print_calls  (true)        print calls"
-    , "print_file   (standard_io) print to this file"
-    , "print_msec   (false)       for backwards compatibility; use print_time_unit => millisecond"
-    , "print_time_unit (second)   print second, millisecond or microsecond on timestamps"
-    , "print_depth  (999999)      formatting depth for \"~P\""
-    , "print_re     (\"\")          print only strings that match this RE"
-    , "print_return (true)        print the return value"
-    , "print_fun    ()            custom print handler, fun/1 or fun/2;"
-    , "                             fun(TrcMsg) -> <ignored>"
-    , "                             fun(TrcMsg, AccOld) -> AccNew"
+    , "print_calls     (true)        print calls"
+    , "print_file      (standard_io) print to this file"
+    , "print_msec      (false)       same as print_time_unit => millisecond"
+    , "print_time_unit (second)      print second, millisecond or microsecond on timestamps"
+    , "print_depth     (999999)      formatting depth for \"~P\""
+    , "print_re        (\"\")        print only strings that match this RE"
+    , "print_return    (true)        print the return value"
+    , "print_fun       ()            custom print handler, fun/1 or fun/2;"
+    , "                                fun(TrcMsg) -> <ignored>"
+    , "                                fun(TrcMsg, AccOld) -> AccNew"
     , "  trc file related opts"
-    , "file         (none)        use a trc file based on this name"
-    , "file_size    (1)           size of each trc file"
-    , "file_count   (8)           number of trc files"
+    , "file         (none)           use a trc file based on this name"
+    , "file_size    (1)              size of each trc file"
+    , "file_count   (8)              number of trc files"
     , ""
     ],
   lists:foreach(fun(S) -> io:fwrite(standard_io, "~s~n", [S])end, Text).
@@ -199,7 +199,6 @@ start(Trc, Props) when is_list(Props) ->
         Cnf = assert_print_fun(make_cnf(Trc, [{shell_pid, self()}|Props])),
         assert_cookie(Cnf),
         register(RedbugName, spawn(fun() -> init(Cnf) end)),
-
         maybe_block(Cnf, block_a_little(RedbugName))
       catch
         R   -> R;

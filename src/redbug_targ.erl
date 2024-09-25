@@ -1,4 +1,3 @@
-%%% -*- erlang-indent-level: 2 -*-
 %%%-------------------------------------------------------------------
 %%% File    : redbug_targ.erl
 %%% Author  : Mats Cronqvist <masse@cronqvi.st>
@@ -135,11 +134,8 @@ init(LD0) ->
 codegen(LD) ->
   LD#ld{trace_patterns = lists:map(fun redbug_compiler:generate/1, LD#ld.asts)}.
 
--define(fold_field(Rec, Field, Fun, Acc0),
-        Rec#ld{Field = lists:foldl(Fun, Acc0, Rec#ld.Field)}).
-
 maybe_load_mods(LD) ->
-  ?fold_field(LD, trace_patterns, fun maybe_load_mod/2, []).
+  LD#ld{trace_patterns = lists:foldl(fun maybe_load_mod/2, [], LD#ld.trace_patterns)}.
 
 maybe_load_mod({{M, _, _}, _, _} = Rtp, O) ->
   try
@@ -154,8 +150,7 @@ maybe_load_mod({{M, _, _}, _, _} = Rtp, O) ->
   end.
 
 expand_underscores(LD) ->
-  LD,
-  ?fold_field(LD, trace_patterns, fun expand_underscore/2, []).
+  LD#ld{trace_patterns = lists:foldl(fun expand_underscore/2, [], LD#ld.trace_patterns)}.
 
 expand_underscore({{'_', '_', '_'}, MatchSpec, Flags}, O) ->
   lists:foldl(mk_expand_module(MatchSpec, Flags), O, modules());
@@ -200,7 +195,7 @@ globals(M) ->
   M:module_info(exports).
 
 fix_procs(LD) ->
-  ?fold_field(LD, procs, fun mk_prc/2, []).
+  LD#ld{procs = lists:foldl(fun mk_prc/2, [], LD#ld.procs)}.
 
 mk_prc(Ps, A) when Ps =:= running; Ps =:= all; Ps =:= new ->
   [Ps|A];

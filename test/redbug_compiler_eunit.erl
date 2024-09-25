@@ -1,16 +1,16 @@
-%% -*- mode: erlang; erlang-indent-level: 2 -*-
 %% @doc
 %% @end
 
 -module(redbug_compiler_eunit).
 
+-dialyzer(no_improper_lists).
+
 -include_lib("eunit/include/eunit.hrl").
 
 -record(rec,
-        {f1,
-         f2        :: integer(),
-         f3 = '_',
-         f4 = '_'  :: integer()}).
+        {f1 = '_',
+         f2 :: integer(),
+         f3 = '_'}).
 
 x_test_() ->
   [?_assertEqual(
@@ -284,7 +284,7 @@ x_test_() ->
    ?_assertEqual(
       {{a,b,2},
        [{['$1','$2'],
-         [{'and',{is_record,'$1',rec,4},{'==','$2',0}}],
+         [{'and',{is_record,'$1',rec,3},{'==','$2',0}}],
          []}],
        [local]},
       unit("a:b(X,Y)when is_record(redbug_compiler_eunit#rec,X) and (Y==0)")),
@@ -551,9 +551,9 @@ x_test_() ->
 
    ?_assertEqual(
      {{e,f,2},
-      [{[2,#rec{f1=0,f2=regular}],[],[]}],
+      [{[2,#rec{f2=0,f3=regular}],[],[]}],
       [local]},
-     unit("e:f(2,redbug_compiler_eunit#rec{f1=0,f2=regular})")),
+     unit("e:f(2,redbug_compiler_eunit#rec{f2=0,f3=regular})")),
 
    ?_assertEqual(
      {{e,f,1},
