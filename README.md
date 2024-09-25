@@ -23,7 +23,7 @@ are printed.
 
 # DOCUMENTATION
 
-Run `rebar3 edoc` or check the online docs at [hexdocs](https://hexdocs.pm/redbug/).
+Run `erl -run redbug help -run erlang halt`, or `redbug:help().`.
 
 # EXAMPLES
 
