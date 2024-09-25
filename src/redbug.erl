@@ -305,7 +305,6 @@ help_script() ->
 dtop() ->
     dtop(#{}).
 
-%% @docfile "doc/dtop.edoc"
 dtop(Cfg) ->
     try
         redbug_dtop:start(),
@@ -341,8 +340,8 @@ stop(Target) ->
 start(RTPs) ->
     start(RTPs, []).
 
-%% @spec start(RTPs::list(), Opts::map()) -> {Procs::integer(), Functions::integer()}
-%% @docfile "doc/start.edoc"
+-spec start(RTPs::list(), Opts::map()) -> {Procs::integer(), Functions::integer()}.
+
 start('send', Props)    -> start([send], Props);
 start('receive', Props) -> start(['receive'], Props);
 start(Trc, Props) when is_map(Props) ->

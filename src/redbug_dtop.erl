@@ -71,7 +71,7 @@ sort_criteria() -> [cpu, mem, msgq].
          max_prcs = 3000}).
 
 -record(data,
-       {sys, prc, net, mnesia}).
+        {sys, prc, net, mnesia}).
 
 %%%---------------------------
 init() ->
@@ -104,9 +104,9 @@ printer(LD) ->
 
 get_data(LD) ->
     #data{sys = get_sys_data(LD),
-          prc = get_prc_data(LD),
-          net = get_net_data(),
-          mnesia = get_mnesia_data()}.
+        prc = get_prc_data(LD),
+        net = get_net_data(),
+        mnesia = get_mnesia_data()}.
 
 print(LD, #data{sys = SysData, prc = PrcData}) ->
     print_del(LD#ld.fd),
@@ -186,13 +186,13 @@ pad_lines(#ld{lines = Lines}, Prcs) ->
 print_prc(#ld{fd = FD}, Prc) ->
     try
         io:fwrite(FD,
-               format(),
-               [pidf(to_list(pull_prc(pid, Prc))),
-                funf(reg(Prc)),
-                funf(pull_prc(current_function, Prc)),
-                human(pull_prc(message_queue_len, Prc)),
-                human(pull_prc(memory, Prc)),
-                to_list(pull_prc(cpu, Prc))])
+                  format(),
+                  [pidf(to_list(pull_prc(pid, Prc))),
+                   funf(reg(Prc)),
+                   funf(pull_prc(current_function, Prc)),
+                   human(pull_prc(message_queue_len, Prc)),
+                   human(pull_prc(memory, Prc)),
+                   to_list(pull_prc(cpu, Prc))])
     catch
         _:_ -> io:fwrite(FD, "~n", [])
     end.
@@ -231,9 +231,9 @@ cpu(SysData) ->
 
 differ(DT, OldData, NewData) ->
     #data{sys = diff(DT, OldData#data.sys, NewData#data.sys),
-          prc = diff(DT, index_prc(pid), OldData#data.prc, NewData#data.prc),
-          net = diff(DT, index_net(port), OldData#data.net, NewData#data.net),
-          mnesia = diff(DT, OldData#data.mnesia, NewData#data.mnesia)}.
+        prc = diff(DT, index_prc(pid), OldData#data.prc, NewData#data.prc),
+        net = diff(DT, index_net(port), OldData#data.net, NewData#data.net),
+        mnesia = diff(DT, OldData#data.mnesia, NewData#data.mnesia)}.
 
 
 %% diff 2 lists of tuples.
@@ -373,40 +373,40 @@ get_sys_data(LD) ->
     OS                               = os_info(LD#ld.strategy),
     #sys
         {now              = erlang:timestamp(),
-         prcs             = erlang:system_info(process_count),
-         context_switches = Ctxt,
-         gcs              = GCs,
-         gc_reclaimed     = GCwords,
-         io_in            = IoIn,
-         io_out           = IoOut,
-         reductions       = Reds,
-         run_queue        = erlang:statistics(run_queue),
-         total            = erlang:memory(total),
-         processes        = erlang:memory(processes),
-         processes_used   = erlang:memory(processes_used),
-         system           = erlang:memory(system),
-         atom             = erlang:memory(atom),
-         atom_used        = erlang:memory(atom_used),
-         binary           = erlang:memory(binary),
-         code             = erlang:memory(code),
-         ets              = erlang:memory(ets),
-         user             = OS#sys_os.user,
-         nice             = OS#sys_os.nice,
-         kernel           = OS#sys_os.kernel,
-         idle             = OS#sys_os.idle,
-         iowait           = OS#sys_os.iowait,
-         beam_user        = OS#sys_os.beam_user,
-         beam_kernel      = OS#sys_os.beam_sys,
-         beam_vsz         = OS#sys_os.vsz,
-         beam_rss         = OS#sys_os.rss,
-         beam_minflt      = OS#sys_os.minflt,
-         beam_majflt      = OS#sys_os.majflt,
-         cores            = (LD#ld.constants)#sys_const.cores,
-         total_ram        = (LD#ld.constants)#sys_const.total_ram}.
+        prcs             = erlang:system_info(process_count),
+        context_switches = Ctxt,
+        gcs              = GCs,
+        gc_reclaimed     = GCwords,
+        io_in            = IoIn,
+        io_out           = IoOut,
+        reductions       = Reds,
+        run_queue        = erlang:statistics(run_queue),
+        total            = erlang:memory(total),
+        processes        = erlang:memory(processes),
+        processes_used   = erlang:memory(processes_used),
+        system           = erlang:memory(system),
+        atom             = erlang:memory(atom),
+        atom_used        = erlang:memory(atom_used),
+        binary           = erlang:memory(binary),
+        code             = erlang:memory(code),
+        ets              = erlang:memory(ets),
+        user             = OS#sys_os.user,
+        nice             = OS#sys_os.nice,
+        kernel           = OS#sys_os.kernel,
+        idle             = OS#sys_os.idle,
+        iowait           = OS#sys_os.iowait,
+        beam_user        = OS#sys_os.beam_user,
+        beam_kernel      = OS#sys_os.beam_sys,
+        beam_vsz         = OS#sys_os.vsz,
+        beam_rss         = OS#sys_os.rss,
+        beam_minflt      = OS#sys_os.minflt,
+        beam_majflt      = OS#sys_os.majflt,
+        cores            = (LD#ld.constants)#sys_const.cores,
+        total_ram        = (LD#ld.constants)#sys_const.total_ram}.
 
 constants(#ld{strategy = {linux, ProcStat, _}}) ->
     #sys_const{total_ram = total_ram(),
-               cores = cores(ProcStat)};
+        cores = cores(ProcStat)};
 constants(_) ->
     #sys_const{}.
 
@@ -434,22 +434,22 @@ proc_stat(FD, OS) ->
             _                             -> [0, 0, 0, 0, 0]
         end,
     OS#sys_os{
-      user   = jiffy_to_sec(User),
-      nice   = jiffy_to_sec(Nice),
-      kernel = jiffy_to_sec(Kernel),
-      idle   = jiffy_to_sec(Idle),
-      iowait = jiffy_to_sec(Iowait)}.
+        user   = jiffy_to_sec(User),
+        nice   = jiffy_to_sec(Nice),
+        kernel = jiffy_to_sec(Kernel),
+        idle   = jiffy_to_sec(Idle),
+        iowait = jiffy_to_sec(Iowait)}.
 
 proc_self_stat(FD, OS) ->
     {ok, Str} = file:pread(FD, 0, 200),
     {Minflt, Majflt, Utime, Stime, Vsz, Rss} = proc_self_stat(Str),
     OS#sys_os{
-      beam_user = jiffy_to_sec(Utime),
-      beam_sys  = jiffy_to_sec(Stime),
-      vsz       = to_int(Vsz),   %% in bytes
-      rss       = to_int(Rss),   %% in pages...
-      minflt    = to_int(Minflt),
-      majflt    = to_int(Majflt)}.
+        beam_user = jiffy_to_sec(Utime),
+        beam_sys  = jiffy_to_sec(Stime),
+        vsz       = to_int(Vsz),   %% in bytes
+        rss       = to_int(Rss),   %% in pages...
+        minflt    = to_int(Minflt),
+        majflt    = to_int(Majflt)}.
 
 %%% pid, comm, state, ppid, pgrp, session, tty_nr, tpgid, flags,
 %%% minflt, cminflt, majflt, cmajflt, utime, stime, cutime, cstime,
@@ -485,8 +485,8 @@ total_ram() ->
     case file:open("/proc/meminfo", [read, raw]) of
         {ok, FD} ->
             try {ok, Str} = file:pread(FD, 0, 30),
-                 ["MemTotal:", T, "kB"|_] = string:tokens(Str, " \n"),
-                 to_int(T)*1024
+                ["MemTotal:", T, "kB"|_] = string:tokens(Str, " \n"),
+                to_int(T)*1024
             catch _:_ -> 0
             after file:close(FD)
             end;
@@ -498,23 +498,23 @@ init_ps() ->
      open_port({spawn, "/bin/sh"}, [stream]),
      "ps -o pid,utime,time,vsz,rss,majflt,minflt -p "++os:getpid()++"\n"}.
 
-%%% iostat -w1 -c2 -dC | tail -n1 | awk '{print $4,$5}' && ps -o pid,utime,time,vsz,rss,majflt,minflt -p 
+%%% iostat -w1 -c2 -dC | tail -n1 | awk '{print $4,$5}' && ps -o pid,utime,time,vsz,rss,majflt,minflt -p
 
 do_ps(Port, Cmd, OS) ->
     Data = get_ps_data(Port, Cmd),
     case[string:tokens(L, " ") || L <- string:tokens(Data, "\n")] of
         [["PID", "UTIME", "TIME", "VSZ", "RSS", "MAJFLT", "MINFLT"],
-%%%      ["1", "0:00.20", "0:00.30", "2488932", "12600", "-", "-"]]
+         %%%      ["1", "0:00.20", "0:00.30", "2488932", "12600", "-", "-"]]
          [_, Utime, Time, Vsz, Rss, MajFault, MinFault]] ->
             UtimeSec = timestr_to_sec(Utime),
             TimeSec =  timestr_to_sec(Time),  %system+user time
             OS#sys_os
                 {beam_user = UtimeSec,
-                 beam_sys = TimeSec-UtimeSec,
-                 vsz = to_int(Vsz)*1024,        % to bytes
-                 rss = to_int(Rss),             % in kB pages
-                 minflt = to_int(MinFault),
-                 majflt = to_int(MajFault)};
+                beam_sys = TimeSec-UtimeSec,
+                vsz = to_int(Vsz)*1024,        % to bytes
+                rss = to_int(Rss),             % in kB pages
+                minflt = to_int(MinFault),
+                majflt = to_int(MajFault)};
         _ ->
             OS
     end.
@@ -575,22 +575,22 @@ get_prc_data(LD) ->
 
 prc_info(Pid) ->
     #prc{
-       pid = Pid,
-       memory = prc_info(Pid, memory),
-       reductions = prc_info(Pid, reductions),
-       message_queue_len = prc_info(Pid, message_queue_len)}.
+        pid = Pid,
+        memory = prc_info(Pid, memory),
+        reductions = prc_info(Pid, reductions),
+        message_queue_len = prc_info(Pid, message_queue_len)}.
 
 complete(Prc, CpuPerRed) ->
     Pid = Prc#prc.pid,
     Prc#prc{
-      cpu              = CpuPerRed*pull_prc_d(reductions, Prc),
-      current_function = prc_info(Pid, current_function),
-      initial_call     = prc_info(Pid, initial_call),
-      registered_name  = prc_info(Pid, registered_name),
-      last_calls       = prc_info(Pid, last_calls),
-      stack_size       = prc_info(Pid, stack_size),
-      heap_size        = prc_info(Pid, heap_size),
-      total_heap_size  = prc_info(Pid, total_heap_size)}.
+        cpu              = CpuPerRed*pull_prc_d(reductions, Prc),
+        current_function = prc_info(Pid, current_function),
+        initial_call     = prc_info(Pid, initial_call),
+        registered_name  = prc_info(Pid, registered_name),
+        last_calls       = prc_info(Pid, last_calls),
+        stack_size       = prc_info(Pid, stack_size),
+        heap_size        = prc_info(Pid, heap_size),
+        total_heap_size  = prc_info(Pid, total_heap_size)}.
 
 prc_info(Pid, Tag) ->
     case erlang:process_info(Pid, Tag) of
@@ -621,12 +621,12 @@ prcinfo(reductions, _) ->
      0};
 prcinfo(last_calls, Pid) ->
     {fun(Val) ->
-             case Val of
-                 false -> try process_flag(Pid, save_calls, 16)
-                          catch _:_ -> ok end,
-                          [];
-                 Calls -> lists:usort(Calls)
-             end
+            case Val of
+                false -> try process_flag(Pid, save_calls, 16)
+                         catch _:_ -> ok end,
+                    [];
+                Calls -> lists:usort(Calls)
+            end
      end,
      []};
 prcinfo(registered_name, _) ->
@@ -634,17 +634,17 @@ prcinfo(registered_name, _) ->
      []};
 prcinfo(initial_call, Pid) ->
     {fun(Val) ->
-             case Val of
-                 {proc_lib, init_p, 5} ->
-                     try proc_lib:translate_initial_call(Pid) of
-                         {dets, init, 2}     -> pinf_dets(Pid);
-                         {disk_log, init, 2} -> pinf_disk_log(Pid);
-                         IC                -> IC
-                     catch _:_ ->
-                             Val
-                     end;
-                 _ -> Val
-             end
+            case Val of
+                {proc_lib, init_p, 5} ->
+                    try proc_lib:translate_initial_call(Pid) of
+                        {dets, init, 2}     -> pinf_dets(Pid);
+                        {disk_log, init, 2} -> pinf_disk_log(Pid);
+                        IC                -> IC
+                    catch _:_ ->
+                        Val
+                    end;
+                _ -> Val
+            end
      end,
      []};
 prcinfo(_, _) ->
@@ -702,9 +702,9 @@ get_net_data() ->
 %%returns #net{}
 port_info(P) ->
     try maybe_inet(#net{port = P,
-                        name = name(P),
-                        input = erlang:port_info(P, input),
-                        output = erlang:port_info(P, output)})
+        name = name(P),
+        input = erlang:port_info(P, input),
+        output = erlang:port_info(P, output)})
     catch _:_ -> #net{port = P}
     end.
 
@@ -714,7 +714,7 @@ maybe_inet(Net) -> Net.
 
 add_inet(Net = #net{port = Port}) ->
     try {ok, Stats} = inet:getstat(Port),
-         lists:foldl(fun push_net/2, Net, Stats)
+        lists:foldl(fun push_net/2, Net, Stats)
     catch _:_ -> Net
     end.
 
@@ -771,16 +771,16 @@ get_mnesia_data() ->
 
 mnesia() ->
     #mnesia{
-       held_locks             = held_locks(),
-       lock_queue             = lock_queue(),
-       subscribers            = subscribers(),
-       table_sizes            = table_sizes(),
-       object_counts          = object_counts(),
-       current_transactions   = current_transactions(),
-       failed_transactions    = failed_transactions(),
-       committed_transactions = committed_transactions(),
-       restarted_transactions = restarted_transactions(),
-       logged_transactions    = logged_transactions()}.
+        held_locks             = held_locks(),
+        lock_queue             = lock_queue(),
+        subscribers            = subscribers(),
+        table_sizes            = table_sizes(),
+        object_counts          = object_counts(),
+        current_transactions   = current_transactions(),
+        failed_transactions    = failed_transactions(),
+        committed_transactions = committed_transactions(),
+        restarted_transactions = restarted_transactions(),
+        logged_transactions    = logged_transactions()}.
 
 %%%_* mnesia stats ============================================================
 
@@ -809,20 +809,20 @@ tables() ->
 -spec table_sizes() -> [{table_name(), bytes()}].
 table_sizes() ->
     F = fun(Table, Acc) ->
-                case table_size(Table) of
-                    undefined -> Acc;
-                    Size      -> [{Table, Size}|Acc]
-                end
+               case table_size(Table) of
+                   undefined -> Acc;
+                   Size      -> [{Table, Size}|Acc]
+               end
         end,
     lists:foldl(F, [], tables()).
 
 -spec object_counts() -> [{table_name(), count()}].
 object_counts() ->
     F = fun(Table, Acc) ->
-                case object_count(Table) of
-                    undefined -> Acc;
-                    Count     -> [{Table, Count}|Acc]
-                end
+               case object_count(Table) of
+                   undefined -> Acc;
+                   Count     -> [{Table, Count}|Acc]
+               end
         end,
     lists:foldl(F, [], tables()).
 

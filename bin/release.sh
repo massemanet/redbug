@@ -48,6 +48,5 @@ git tag -a -m"$NVSN" "$NVSN"
 git push \
     && git push --tags \
     && rebar3 eunit \
-    && rebar3 edoc \
-    && rebar3 hex publish \
-    && rebar3 hex docs
+    && rebar3 ex_doc \
+    && rebar3 hex publish
