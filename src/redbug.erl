@@ -50,7 +50,8 @@
          records      = [],          % list of module names to get records from
          print_calls  = true,        % print calls
          print_file   = "",          % file to print to (standard_io)
-         print_msec   = false,       % print milliseconds in timestamps?
+         print_msec   = false,       % for backwards compatibility; use print_time_unit => millisecond
+         print_time_unit = second,   % Time unit to use in the timestamps
          print_depth  = 999999,      % Limit for "~P" formatting depth
          print_re     = "",          % regexp that must match to print
          print_return = true,        % print return value
@@ -121,7 +122,8 @@ help() ->
     , "  print-related opts"
     , "print_calls  (true)        print calls"
     , "print_file   (standard_io) print to this file"
-    , "print_msec   (false)       print milliseconds on timestamps"
+    , "print_msec   (false)       for backwards compatibility; use print_time_unit => millisecond"
+    , "print_time_unit (second)   print second, millisecond or microsecond on timestamps"
     , "print_depth  (999999)      formatting depth for \"~P\""
     , "print_re     (\"\")          print only strings that match this RE"
     , "print_return (true)        print the return value"
@@ -197,7 +199,7 @@ start(Trc, Props) when is_list(Props) ->
         Cnf = assert_print_fun(make_cnf(Trc, [{shell_pid, self()}|Props])),
         assert_cookie(Cnf),
         register(RedbugName, spawn(fun() -> init(Cnf) end)),
-      
+
         maybe_block(Cnf, block_a_little(RedbugName))
       catch
         R   -> R;
@@ -383,12 +385,14 @@ mk_blocker() ->
 
 mk_outer(#cnf{file=[_|_]}) ->
   fun(_) -> ok end;
-mk_outer(#cnf{print_depth=Depth, print_msec=MS, print_return=Ret, print_calls=Calls} = Cnf) ->
+mk_outer(#cnf{print_msec=true, print_time_unit=second} = Cnf) ->
+  mk_outer(Cnf#cnf{print_time_unit=millisecond});
+mk_outer(#cnf{print_depth=Depth, print_time_unit=TU, print_return=Ret, print_calls=Calls} = Cnf) ->
   OutFun = mk_out(Cnf),
-  fun({Tag, Data, PI, TS}) -> outer(Tag, Data, PI, TS, Depth, MS, Ret, Calls, OutFun) end.
+  fun({Tag, Data, PI, TS}) -> outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, OutFun) end.
 
-outer(Tag, Data, PI, TS, Depth, MS, Ret, Calls, OutFun) ->
-  MTS = fix_ts(MS, TS),
+outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, OutFun) ->
+  MTS = fix_ts(TU, TS),
   case {Tag, Data} of
     {'meta', {recs, Recs}} ->
       put_recs(Recs);
@@ -487,16 +491,19 @@ assert_dir(File) ->
     {error, R} -> throw({file_error, {File, R}})
   end.
 
-fix_ts(MS, TS) ->
-  case MS of
-    true -> ts_ms(TS);
-    false-> ts(TS)
+fix_ts(TU, TS) ->
+  case TU of
+    microsecond -> ts_us(TS);
+    millisecond -> ts_ms(TS);
+    _-> ts_s(TS)
   end.
 
-ts({H, M, S, _Us}) ->
+ts_s({H, M, S, _Us}) ->
   flat("~2.2.0w:~2.2.0w:~2.2.0w", [H, M, S]).
 ts_ms({H, M, S, Us}) ->
   flat("~2.2.0w:~2.2.0w:~2.2.0w.~3.3.0w", [H, M, S, Us div 1000]).
+ts_us({H, M, S, Us}) ->
+  flat("~2.2.0w:~2.2.0w:~2.2.0w.~6.6.0w", [H, M, S, Us]).
 
 %%% call stack handler
 stak(Bin) ->

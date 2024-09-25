@@ -13,10 +13,13 @@ t_0_test() ->
   redbug:stop(),
   timer:sleep(100),
   maybe_show(Filename),
+  TS = re:split(get_line_seg(Filename, 1, 2), "[:.]"),
   ?assertEqual(<<"lists:sort([3,2,1])">>,
                get_line_seg(Filename, 2, 2)),
   ?assertEqual(4,
-               length(re:split(get_line_seg(Filename, 1, 2), "[:.]"))),
+               length(TS)),
+  ?assertEqual(3,
+               size(lists:last(TS))),
   maybe_delete(Filename).
 
 t_01_test() ->
@@ -31,6 +34,23 @@ t_01_test() ->
                get_line_seg(Filename, 2, 2)),
   ?assertEqual(3,
                length(re:split(get_line_seg(Filename, 1, 2), "[:.]"))),
+  maybe_delete(Filename).
+
+t_02_test() ->
+  Filename = "redbug02.txt",
+  {_, _, _} = redbug:start("lists:sort", [{print_file, Filename}, {print_time_unit, microsecond}, debug]),
+  [1, 2, 3] = lists:sort([3, 2, 1]),
+  timer:sleep(100),
+  redbug:stop(),
+  timer:sleep(100),
+  maybe_show(Filename),
+  TS = re:split(get_line_seg(Filename, 1, 2),"[:.]"),
+  ?assertEqual(<<"lists:sort([3,2,1])">>,
+               get_line_seg(Filename, 2, 2)),
+  ?assertEqual(4,
+               length(TS)),
+  ?assertEqual(6,
+               size(lists:last(TS))),
   maybe_delete(Filename).
 
 t_1_test() ->
