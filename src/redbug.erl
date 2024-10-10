@@ -56,6 +56,7 @@
         print_depth     = 999999, % Limit for "~P" formatting depth
         print_re        = "",     % regexp that must match to print
         print_return    = true,   % print return value
+        print_node      = false,  % print node name of traced pid
         print_fun       = '',     % custom print handler
         %% trc file-related
         file       = "",          % file to write trace msgs to
@@ -145,6 +146,7 @@ handle_args(["-" ++ Option | Rest], Config) ->
             print_depth => integer,
             print_re => string,
             print_return => boolean,
+            print_node => boolean,
           %% trc file-related
             file => string,
             file_size => integer,
@@ -276,6 +278,7 @@ help_text() ->
     , "print_depth     (999999)      formatting depth for \"~P\""
     , "print_re        (\"\")          print only strings that match this RE"
     , "print_return    (true)        print the return value"
+    , "print_node      (false)       print node name of traced pid"
     , "print_fun       ()            custom print handler, fun/1 or fun/2;"
     , "                                fun(TrcMsg) -> <ignored>"
     , "                                fun(TrcMsg, AccOld) -> AccNew"
@@ -543,11 +546,11 @@ mk_outer(#cnf{file=[_|_]}) ->
     fun(_) -> ok end;
 mk_outer(#cnf{print_msec=true, print_time_unit=second} = Cnf) ->
     mk_outer(Cnf#cnf{print_time_unit=millisecond});
-mk_outer(#cnf{print_depth=Depth, print_time_unit=TU, print_return=Ret, print_calls=Calls} = Cnf) ->
+mk_outer(#cnf{print_depth=Depth, print_time_unit=TU, print_return=Ret, print_calls=Calls, print_node = PrNode} = Cnf) ->
     OutFun = mk_out(Cnf),
-    fun({Tag, Data, PI, TS}) -> outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, OutFun) end.
+    fun({Tag, Data, PI, TS}) -> outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, PrNode, OutFun) end.
 
-outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, OutFun) ->
+outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, PrNode, OutFun) ->
     MTS = fix_ts(TU, TS),
     case {Tag, Data} of
         {'meta', {recs, Recs}} ->
@@ -569,11 +572,11 @@ outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, OutFun) ->
                 true ->
                     case is_integer(A) of
                         true ->
-                            OutFun("~n% ~s ~s~n% ~w:~w/~w", [MTS, to_str(PI), M, F, A]);
+                            OutFun("~n% ~s ~s~n% ~w:~w/~w", [MTS, to_str(PI, PrNode), M, F, A]);
                         false->
                             Args = [flat("~tP", [expand(A0), Depth]) || A0 <- A],
                             AL = string:join(Args, ", "),
-                            OutFun("~n% ~s ~s~n% ~w:~w(~s)", [MTS, to_str(PI), M, F, AL])
+                            OutFun("~n% ~s ~s~n% ~w:~w(~s)", [MTS, to_str(PI, PrNode), M, F, AL])
                     end,
                     lists:foreach(fun(L) -> OutFun("%   ~s", [L]) end, stak(Bin));
                 false->
@@ -585,21 +588,23 @@ outer(Tag, Data, PI, TS, Depth, TU, Ret, Calls, OutFun) ->
                 false -> '...'
                   end,
             OutFun("~n% ~s ~s~n% ~p:~p/~p -> ~tP",
-                   [MTS, to_str(PI), M, F, A, Val, Depth]);
+                   [MTS, to_str(PI, PrNode), M, F, A, Val, Depth]);
         {'send', {MSG, ToPI}} ->
             OutFun("~n% ~s ~s~n% ~s <<< ~tP",
-                   [MTS, to_str(PI), to_str(ToPI), expand(MSG), Depth]);
+                   [MTS, to_str(PI, PrNode), to_str(ToPI, PrNode), expand(MSG), Depth]);
         {'recv', MSG} ->
             OutFun("~n% ~s ~s~n% <<< ~tP",
-                   [MTS, to_str(PI), expand(MSG), Depth])
+                   [MTS, to_str(PI, PrNode), expand(MSG), Depth])
     end.
 
 per_proc({_, Count, Sec, Usec}, {AC, AT}) ->
     {Count+AC, Sec*1000000+Usec+AT}.
 
-to_str({Pid, Reg}) ->
+to_str({Pid, Reg}, true) when is_pid(Pid) ->
+    flat("~p ~w(~p)", [node(Pid), Pid, Reg]);
+to_str({Pid, Reg}, _) ->
     flat("~w(~p)", [Pid, Reg]);
-to_str(RegisteredName) ->
+to_str(RegisteredName, _) ->
     flat("~p", [RegisteredName]).
 
 %% expand records, if any
