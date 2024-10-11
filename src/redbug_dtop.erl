@@ -1,9 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% File    : redbug_dtop.erl
-%%% Created :  5 Sep 2005
-%%% Created : 16 Dec 2003
 %%% Created :  5 Dec 2003 by Mats Cronqvist <qthmacr@duna283>
-%%% Created :  8 Dec 2003 by Mats Cronqvist <qthmacr@duna283>
 %%% Created : 18 Oct 2005 by Mats Cronqvist <locmacr@mwlx084>
 %%% Description : top-like client for beam
 %%%-------------------------------------------------------------------
@@ -60,17 +57,22 @@ cfg(lines, S) -> %%% 19
         true -> redbug_dtop ! {config, lines, S};
         false -> {error, must_be_between_1_and_100}
     end;
-cfg(groupby, S) ->
+cfg(width, S) -> %%% 79
+    case is_integer(S) andalso 79 =< S andalso S =< 120 of
+        true -> redbug_dtop ! {config, width, S};
+        false -> {error, must_be_between_79_and_120}
+    end;
+cfg(groupby, S) -> %% pid | name
     case lists:member(S, [pid, name]) of
         true -> redbug_dtop ! {config, groupby, S};
         false -> {error, unknown_grouping}
     end;
-cfg(sort, S) ->
+cfg(sort, S) -> %% cpu | mem | msgq
     case lists:member(S, [cpu, mem, msgq]) of
         true -> redbug_dtop ! {config, sort, S};
         false -> {error, unknown_criteria}
     end;
-cfg(max_procs, Max) ->
+cfg(max_procs, Max) -> %% 3000
     case is_integer(Max) of
         true -> redbug_dtop ! {config, max_procs, Max};
         false -> {error, not_integer}
@@ -147,16 +149,16 @@ cfg(max_procs, Max) ->
 %% info about a process
 -record(prc,
         {pid,
-         cpu = 0,                 %% reductions * cpu_per_reduction
-         reductions = 0,          %% integer()
-         memory = 0,              %% bytes
+         cpu               = 0,   %% reductions * cpu_per_reduction
+         reductions        = 0,   %% integer()
+         memory            = 0,   %% bytes
          message_queue_len = 0,   %% integer()
-         current_function = "",   %% {M, F, A}
-         name = "",               %% (registered_name, label, or initial_call)
-         last_calls = [],         %% [{M, F, A}]
-         stack_size = 0,          %% bytes
-         heap_size = 0,           %% bytes
-         total_heap_size = 0}).   %% bytes
+         current_function  = "",  %% {M, F, A}
+         name              = "",  %% (registered_name, label, or initial_call)
+         last_calls        = [],  %% [{M, F, A}]
+         stack_size        = 0,   %% bytes
+         heap_size         = 0,   %% bytes
+         total_heap_size   = 0}). %% bytes
 
 %% an abstract pattern/constructor for #prc{}
 -define(PRC(Pid, Cpu, Mem, MQL, CFN, N),
@@ -219,6 +221,7 @@ cfg(max_procs, Max) ->
          sort = cpu,
          tick = 2000,
          lines = 19,
+         width = 79,
          groupby = pid,
          max_procs = 3000,
          os = os(),
@@ -242,6 +245,7 @@ loop(LD) ->
         {config, sort, Val}      -> loop(LD#ld{sort = Val});
         {config, tick, Val}      -> loop(LD#ld{tick = Val});
         {config, lines, Val}     -> loop(LD#ld{lines = Val});
+        {config, width, Val}     -> loop(LD#ld{width = Val});
         {config, groupby, Val}   -> loop(LD#ld{groupby = Val});
         {config, max_procs, Val} -> loop(LD#ld{max_procs = Val});
         quit -> ok
@@ -262,25 +266,26 @@ get_data(LD) ->
           fun fill_mnesia_data/1]).
 
 print(LD) ->
-    print_del(LD#ld.fd),
-    print_sys(LD#ld.fd, LD#ld.data),
-    io:fwrite(LD#ld.fd, "~n", []),
-    print_tags(LD#ld.fd),
+    print_del(LD),
+    print_sys(LD),
+    print_nl(LD),
+    print_tags(LD),
     print_prcs(LD),
+    print_net(LD),
     LD.
 
-print_sys(FD, #data{sys = Sys}) ->
-    io:fwrite(FD, "~s~n", [sys_str(Sys)]),
-    io:fwrite(FD, memf(), memi(Sys)).
+print_sys(#ld{fd = FD, width = W, data = #data{sys = Sys}}) ->
+    io:fwrite(FD, "~s~n", [sys_str(Sys, W)]),
+    io:fwrite(FD, memf(W), memi(Sys)).
 
-memf() ->
-    "memory:      proc~8s, atom~8s, bin~8s, code~8s, ets~8s~n".
+memf(W) ->
+    "memory:"++lists:duplicate(W-78, $ )++"proc:~8s, atom:~8s, bin:~8s, code:~8s, ets:~8s~n".
 
 memi(Sys) ->
     Ms = [Sys#sys.processes_mem, Sys#sys.atom, Sys#sys.binary, Sys#sys.code, Sys#sys.ets],
     [try human(M) catch _:_ -> "" end|| M <- Ms].
 
-sys_str(Sys) ->
+sys_str(Sys, Width) ->
     {_, Time} = calendar:now_to_local_time(Sys#sys.now),
     H         = pad(element(1, Time), 2, $0, left),
     M         = pad(element(2, Time), 2, $0, left),
@@ -299,14 +304,14 @@ sys_str(Sys) ->
                                       "("         , CPU,
                                       "), procs: ", Prcs,
                                       ", runq: "  , RunQ,
-                                      ", ", H, ":", M, ":", S]), 79),
-    pad(Node, 79-length(SYS), $ , right)++SYS.
+                                      ", ", H, ":", M, ":", S]), Width),
+    pad(Node, Width-length(SYS), $ , right)++SYS.
 
 pad(Item, Len, Pad, LeftRight) ->
     Str = to_list(Item),
     case length(Str) of
         L when L =:= Len -> Str;
-        L when L<Len -> pad(Str, L, Len, Pad, LeftRight);
+        L when L < Len -> pad(Str, L, Len, Pad, LeftRight);
         _ -> lists:sublist(Str, Len)
     end.
 
@@ -316,22 +321,24 @@ pad(Str, L, Len, Pad, LeftRight) ->
         right-> Str++lists:duplicate(Len-L, Pad)
     end.
 
-print_del(FD) ->
-    io:fwrite(FD, "~s~n", [lists:duplicate(79, $-)]).
+print_del(#ld{fd = FD, width = W}) ->
+    io:fwrite(FD, "~s~n", [lists:duplicate(W, $-)]).
 
-format() -> "~-14s ~-28s ~-17s~7s~7s~4s~n".
+print_tags(#ld{fd = FD, width = W}) ->
+    io:fwrite(FD, format(W), tags()).
 
-tags() -> ["pid", "name", "current", "msgq", "mem", "cpu"].
+tags() ->
+    ["pid", "name", "current", "msgq", "mem", "cpu"].
 
-print_tags(FD) ->
-    io:fwrite(FD, format(), tags()).
+print_nl(#ld{fd = FD}) ->
+    io:fwrite(FD, "~n", []).
 
 %%------------------------------------------------------
 %% print process data
 
 print_prcs(LD) ->
     Prcs = toplist(LD, groupby(LD)),
-    lists:foreach(mk_print_prc(LD#ld.fd), pad_lines(LD, Prcs)).
+    lists:foreach(mk_print_prc(LD), pad_lines(LD, Prcs)).
 
 groupby(#ld{groupby = Groupby, data = #data{prc = PrcData}}) ->
     case Groupby of
@@ -360,13 +367,13 @@ pad_lines(#ld{lines = Lines}, Prcs) ->
         false-> Prcs++lists:duplicate(Lines-length(Prcs), [])
     end.
 
-mk_print_prc(FD) ->
-    fun(Prc) -> print_prc(FD, Prc) end.
+mk_print_prc(LD) ->
+    fun(Prc) -> print_prc(LD, Prc) end.
 
-print_prc(FD, Prc) ->
+print_prc(#ld{fd = FD, width = Width}, Prc) ->
     try
         io:fwrite(FD,
-                  format(),
+                  format(Width),
                   [pidf(to_list(Prc#prc.pid)),
                    funf(Prc#prc.name),
                    funf(Prc#prc.current_function),
@@ -385,6 +392,9 @@ pidf(X) ->
 
 funf({M, F, A}) -> to_list(M)++":"++to_list(F)++"/"++to_list(A);
 funf(Term) -> io_lib:fwrite("~p", [Term]).
+
+format(Width) ->
+    flat("~~-14s ~~-28s ~~-~ws~~7s~~7s~~4s~~n", [Width-62]).
 
 %%--------------------------------------------------------------------------
 %% calculate process toplist
@@ -763,8 +773,95 @@ pinf_disk_log(Pid) ->
 %%----------------------------------------------------------------------------------------
 %% network activity
 
-%% setters
+print_net(#ld{data = #data{net = Net}}) ->
+    lists:foreach(fun(N) -> io:fwrite("~p~n", [N]) end, Net).
 
+fill_net_data(LD) ->
+    Data = LD#ld.data,
+    New = lists:map(fun port_info/1, lists:sort(erlang:ports())),
+    LD#ld{data = Data#data{net = New}}.
+
+%%returns #net{}
+port_info(P) ->
+    PI = maps:from_list(erlang:port_info(P)),
+    case re:split(maps:get(name, PI), "_", [{return, list}]) of
+        [Type, "inet"] -> port_inet(PI#{type => Type, port => P});
+        _ -> lists:foldl(mk_set_net(PI), #net{port = P}, [name, input, output])
+    end.
+
+mk_set_net(PI) ->
+    fun(T, Net) -> set_net(T, PI, Net) end.
+
+set_net(T, PI, Net) ->
+    set_net({T, maps:get(T, PI)}, Net).
+
+port_inet(PI) ->
+    pipe(PI,
+         [fun inet_info/1,
+          fun inet_states/1,
+          fun inet_port/1,
+          fun peeraddr/1,
+          fun peername/1,
+          fun inet_sctp/1]).
+
+inet_info(PI = #{port := Port}) ->
+    maps:merge(inet:info(Port), PI).
+
+inet_states(PI) ->
+    lists:foldl(fun inet_state/2, PI, [open, connected, listen]).
+
+inet_state(T, PI) ->
+    PI#{T => lists:member(T, maps:get(states, PI))}.
+
+inet_port(PI = #{port := Port}) ->
+    fun(Z) -> case inet:port(Port) of {ok, Portno} -> Z#{portno => Portno}; _-> PI end end.
+
+inet_sctp(PI = #{type := Type}) when Type =/= "sctp" ->
+    PI;
+inet_sctp(PI = #{port := Port}) ->
+    case inet:getopts(Port, [sctp_associnfo]) of
+        {error, _} -> PI;
+        {ok, AssocInfos} -> PI#{assocs => lists:foldl(mk_inet_assoc(Port), [], AssocInfos)}
+    end.
+
+-include_lib("kernel/include/inet_sctp.hrl").
+mk_inet_assoc(Port) ->
+    fun({sctp_associnfo, #sctp_assocparams{assoc_id = AID}}, O) ->
+           case inet:getopts(Port, [{sctp_status, #sctp_status{assoc_id = AID}}]) of
+               {error, _} -> O;
+               {ok, Statii} -> lists:foldl(fun inet_assoc_status/2, [], Statii)
+           end
+    end.
+
+inet_assoc_status({sctp_status, S}, O) ->
+    case S of
+        #sctp_status{assoc_id = AID, state = AS, primary = P} ->
+            [inet_assoc_peer(P, #{assoc_id => AID, assoc_state => AS})|O];
+        _ ->
+            O
+    end.
+
+inet_assoc_peer(P, O) ->
+    case P of
+        #sctp_paddrinfo{address = {IP, Port}, state = PeerState} ->
+            O#{peer_ip => IP, peer_port => Port, peer_state => PeerState};
+        _ ->
+            O
+    end.
+
+peeraddr(PI = #{port := Port}) ->
+    case inet:peername(Port) of
+        {error, enotconn} -> PI;
+        {ok, {IP, Port}} -> PI#{peer_ip => IP, peer_port => Port}
+    end.
+
+peername(PI) ->
+    case maps:is_key(peer_ip, PI) andalso inet:gethostbyaddr(maps:get(peer_ip, PI)) of
+        {ok, #hostent{h_name = N}} -> PI#{peername => N};
+        _ -> PI
+    end.
+
+%% #net{} setters
 set_net({recv_avg, V}, Net) -> Net#net{recv_avg = V};
 set_net({recv_cnt, V}, Net) -> Net#net{recv_cnt = V};
 set_net({recv_dvi, V}, Net) -> Net#net{recv_dvi = V};
@@ -775,58 +872,6 @@ set_net({send_cnt, V}, Net) -> Net#net{send_cnt = V};
 set_net({send_max, V}, Net) -> Net#net{send_max = V};
 set_net({send_oct, V}, Net) -> Net#net{send_oct = V};
 set_net({send_pend,V}, Net) -> Net#net{send_pend = V}.
-
-fill_net_data(LD) ->
-    Data = LD#ld.data,
-    New = lists:map(fun port_info/1, lists:sort(erlang:ports())),
-    LD#ld{data = Data#data{net = New}}.
-
-%%returns #net{}
-port_info(P) ->
-    try maybe_inet(#net{port = P,
-        name = port_name(P),
-        input = erlang:port_info(P, input),
-        output = erlang:port_info(P, output)})
-    catch _:_ -> #net{port = P}
-    end.
-
-maybe_inet(Net = #net{name = "tcp"++_}) -> add_inet(Net);
-maybe_inet(Net = #net{name = "udp"++_}) -> add_inet(Net);
-maybe_inet(Net) -> Net.
-
-add_inet(Net = #net{port = Port}) ->
-    try {ok, Stats} = inet:getstat(Port),
-        lists:foldl(fun set_net/2, Net, Stats)
-    catch _:_ -> Net
-    end.
-
-port_name(P) ->
-    case erlang:port_info(P, name) of
-        {name, "udp_inet"} ->
-            {ok, Port} = inet:port(P),
-            flat("udp:~p", [Port]);
-        {name, "tcp_inet"} ->
-            {ok, {IP, Port}} = inet:peername(P),
-            flat("tcp:~p:~p-~s", [IP, Port, tcp_name(IP, Port)]);
-        {name, Name} ->
-            Name
-    end.
-
-tcp_name(IP, Port) ->
-    case inet:gethostbyaddr(IP) of
-        {ok, #hostent{h_name = HostName}} ->
-            try
-                {ok, Socket} = gen_tcp:connect(IP, 4369, [inet], 100),
-                inet:close(Socket),
-                {ok, Names} = erl_epmd:names(IP),
-                {value, {NodeName, Port}} = lists:keysearch(Port, 2, Names),
-                NodeName++"@"++HostName
-            catch
-                _:_ -> HostName
-            end;
-        _ ->
-            ""
-    end.
 
 %%----------------------------------------------------------------------------------------
 %% mnesia activity
