@@ -222,7 +222,7 @@ cpu_per_red(SysData) ->
 
 cpu(SysData) ->
     case pull_sys_d(beam_user, SysData) + pull_sys_d(beam_kernel, SysData) of
-        0.0 -> 1;
+        +0.0 -> 1;
         C -> C
     end.
 
