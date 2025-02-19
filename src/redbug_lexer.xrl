@@ -22,7 +22,7 @@ B2 = and|or|andalso|orelse|xor
 % BIFs, split by arity
 F0 = self
 F1 = abs|hd|length|node|round|size|tl|trunc
-F2 = element
+F2 = element|is_map_key|map_get
 
 Rules.
 

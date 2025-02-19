@@ -138,6 +138,18 @@ x_test_() ->
       unit("a when element(1,'$_')=/=b")),
 
    ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{is_map_key,a,'$_'}],[]}],
+       [local]},
+      unit("a when is_map_key(a,'$_')")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=/=',{map_get,a,'$_'},b}],[]}],
+       [local]},
+      unit("a when map_get(a,'$_')=/=b")),
+
+   ?_assertEqual(
       {{erlang,'_','_'},
        [{'_',[{'==',{tl,{hd,'$_'}},{{}}}],[]}],
        [local]},
