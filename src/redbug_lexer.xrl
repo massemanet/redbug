@@ -56,6 +56,10 @@ is_record :
 ({F2}) :
   {token, {'bif2', TokenLine, to_atom(TokenChars)}}.
 
+% binary_part can be a 2-bif or a 3-bif and needs special-handling
+binary_part :
+  {token, {'binary_part', TokenLine}}.
+
 ({C}) :
   {token, {'comparison_op', TokenLine, to_atom(TokenChars)}}.
 

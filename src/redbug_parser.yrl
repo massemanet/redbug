@@ -15,7 +15,7 @@ Terminals
   'pid' 'ref' 'port'
   'wildcard' 'variable' 'bin' 'int' 'atom' 'string'
   'comparison_op' 'arithmetic_op' 'boolean_op1' 'boolean_op2'
-  'type_test1' 'type_isrec' 'bif0' 'bif1' 'bif2'.
+  'type_test1' 'type_isrec' 'bif0' 'bif1' 'bif2' 'binary_part'.
 
 Rootsymbol rtp.
 
@@ -121,6 +121,8 @@ guard_value -> '(' guard_value ')'                        : '$2'.
 guard_value -> 'bif0' '(' ')'                             : {e13('$1'), []}.
 guard_value -> 'bif1' '(' guard_value ')'                 : {e13('$1'), ['$3']}.
 guard_value -> 'bif2' '(' guard_value ',' guard_value ')' : {e13('$1'), ['$3', '$5']}.
+guard_value -> 'binary_part' '(' guard_value ',' guard_value ')' : {{bif2, binary_part}, ['$3', '$5']}.
+guard_value -> 'binary_part' '(' guard_value ',' guard_value ',' guard_value ')' : {{bif3, binary_part}, ['$3', '$5', '$7']}.
 guard_value -> guard_value 'arithmetic_op' guard_value    : {e13('$2'), ['$1', '$3']}.
 guard_value -> term                                       : '$1'.
 

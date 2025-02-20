@@ -157,7 +157,8 @@ lift({{type_test1,    Tst}, Args}, Ctxt) -> lift1(Tst, Args, Ctxt);
 lift({{type_isrec,    Tst}, Args}, Ctxt) -> liftR(Tst, Args, Ctxt);
 lift({{bif0,          Bif}, Args}, Ctxt) -> lift0(Bif, Args, Ctxt);
 lift({{bif1,          Bif}, Args}, Ctxt) -> lift1(Bif, Args, Ctxt);
-lift({{bif2,          Bif}, Args}, Ctxt) -> lift2(Bif, Args, Ctxt).
+lift({{bif2,          Bif}, Args}, Ctxt) -> lift2(Bif, Args, Ctxt);
+lift({{bif3,          Bif}, Args}, Ctxt) -> lift3(Bif, Args, Ctxt).
 
 %% different arity functions
 lift0(Op, Args, Ctxt) ->
@@ -171,6 +172,10 @@ lift1(Op, Args, Ctxt) ->
 lift2(Op, Args, Ctxt) ->
     {[Arg1, Arg2], _} = lift_list(Args, Ctxt),
     {{Op, Arg1, Arg2}, Ctxt}.
+
+lift3(Op, Args, Ctxt) ->
+    {[Arg1, Arg2, Arg3], _} = lift_list(Args, Ctxt),
+    {{Op, Arg1, Arg2, Arg3}, Ctxt}.
 
 liftR(is_record, Args, Ctxt) ->
     {[Arg1, Arg2], _} = lift_list(Args, Ctxt),

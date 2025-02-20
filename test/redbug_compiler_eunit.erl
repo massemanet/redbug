@@ -204,6 +204,18 @@ x_test_() ->
       unit("a:b when trunc(ceil(floor(round(float('$_')))))=/='$_'")),
 
    ?_assertEqual(
+      {{a,b,'_'},
+       [{'_',[{'=/=',{binary_part,'$_',{{2,1}}},<<"a">>}],[]}],
+       [local]},
+      unit("a:b when binary_part('$_', {2, 1})=/=<<$a>>")),
+
+   ?_assertEqual(
+      {{a,b,'_'},
+       [{'_',[{'=/=',{binary_part,'$_',2,1},<<"a">>}],[]}],
+       [local]},
+      unit("a:b when binary_part('$_', 2, 1)=/=<<$a>>")),
+
+   ?_assertEqual(
       {{a,'_','_'},
        [{'_',[],[]}],
        [local]},
