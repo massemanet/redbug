@@ -7,7 +7,7 @@ WS = [\000-\s]
 S = ->|\+\+|when|\(|\)|\[|\]|{|}|;|:|#|,|:=|=>|=|#{|/|\|
 
 % types
-T = atom|integer|list|number|pid|port|reference|tuple|map|binary|function
+T = atom|integer|list|number|pid|port|reference|tuple|map|binary|bitstring|function
 
 % comparison operators, binary
 C = >|>=|<|=<|=:=|==|=/=|/=
@@ -21,8 +21,8 @@ B2 = and|or|andalso|orelse|xor
 
 % BIFs, split by arity
 F0 = self
-F1 = abs|hd|length|node|round|size|tl|trunc
-F2 = element
+F1 = abs|hd|length|node|float|round|floor|ceil|trunc|size|bit_size|byte_size|tuple_size|map_size|tl
+F2 = element|is_map_key|map_get|min|max
 
 Rules.
 
@@ -55,6 +55,10 @@ is_record :
 
 ({F2}) :
   {token, {'bif2', TokenLine, to_atom(TokenChars)}}.
+
+% binary_part can be a 2-bif or a 3-bif and needs special-handling
+binary_part :
+  {token, {'binary_part', TokenLine}}.
 
 ({C}) :
   {token, {'comparison_op', TokenLine, to_atom(TokenChars)}}.

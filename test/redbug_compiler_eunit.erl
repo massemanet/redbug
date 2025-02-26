@@ -138,6 +138,54 @@ x_test_() ->
       unit("a when element(1,'$_')=/=b")),
 
    ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=/=',{min,1,'$_'},1}],[]}],
+       [local]},
+      unit("a when min(1,'$_')=/=1")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=/=',{max,1,'$_'},1}],[]}],
+       [local]},
+      unit("a when max(1,'$_')=/=1")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{is_map_key,a,'$_'}],[]}],
+       [local]},
+      unit("a when is_map_key(a,'$_')")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=/=',{map_get,a,'$_'},b}],[]}],
+       [local]},
+      unit("a when map_get(a,'$_')=/=b")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=:=',{map_size,'$_'},1}],[]}],
+       [local]},
+      unit("a when map_size('$_')=:=1")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=:=',{byte_size,'$_'},1}],[]}],
+       [local]},
+      unit("a when byte_size('$_')=:=1")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=:=',{bit_size,'$_'},1}],[]}],
+       [local]},
+      unit("a when bit_size('$_')=:=1")),
+
+   ?_assertEqual(
+      {{a,'_','_'},
+       [{'_',[{'=:=',{tuple_size,'$_'},1}],[]}],
+       [local]},
+      unit("a when tuple_size('$_')=:=1")),
+
+   ?_assertEqual(
       {{erlang,'_','_'},
        [{'_',[{'==',{tl,{hd,'$_'}},{{}}}],[]}],
        [local]},
@@ -148,6 +196,24 @@ x_test_() ->
        [{'_',[{'=/=',{element,1,'$_'},c}],[]}],
        [local]},
       unit("a:b when element(1,'$_')=/=c")),
+
+   ?_assertEqual(
+      {{a,b,'_'},
+       [{'_',[{'=/=',{trunc,{ceil,{floor,{round,{float,'$_'}}}}},'$_'}],[]}],
+       [local]},
+      unit("a:b when trunc(ceil(floor(round(float('$_')))))=/='$_'")),
+
+   ?_assertEqual(
+      {{a,b,'_'},
+       [{'_',[{'=/=',{binary_part,'$_',{{2,1}}},<<"a">>}],[]}],
+       [local]},
+      unit("a:b when binary_part('$_', {2, 1})=/=<<$a>>")),
+
+   ?_assertEqual(
+      {{a,b,'_'},
+       [{'_',[{'=/=',{binary_part,'$_',2,1},<<"a">>}],[]}],
+       [local]},
+      unit("a:b when binary_part('$_', 2, 1)=/=<<$a>>")),
 
    ?_assertEqual(
       {{a,'_','_'},
