@@ -176,7 +176,13 @@ handle_args([Trc | Rest], Config = #cnf{trc = Trcs}) ->
 -endif.
 
 %% net_kernel:start/2 was introduced in OTP 24.3
--if(?OTP_RELEASE >= 25).
+%% hidden-option was added to start options in OTP 25.1
+-if(?OTP_RELEASE >= 26).
+start_distribution(Cnf) ->
+    DistOptions = #{name_domain => name_domain(Cnf), hidden => true},
+    {ok, _} = net_kernel:start(random_node_name(), DistOptions),
+    assert_cookie(Cnf).
+-elif(?OTP_RELEASE >= 25).
 start_distribution(Cnf) ->
     DistOptions = #{name_domain => name_domain(Cnf)},
     {ok, _} = net_kernel:start(random_node_name(), DistOptions),
