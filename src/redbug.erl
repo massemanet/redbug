@@ -173,10 +173,28 @@ handle_args([Trc | Rest], Config = #cnf{trc = Trcs}) ->
     %% Any following non-option arguments are trace patterns.
     handle_args(Rest, Config#cnf{trc = Trcs++[trc(Trc)]}).
 
+-ifndef(OTP_RELEASE).
+-define(OTP_RELEASE, 0).
+-endif.
+
+%% net_kernel:start/2 was introduced in OTP 24.3
+%% hidden-option was added to start options in OTP 25.1
+-if(?OTP_RELEASE >= 26).
 start_distribution(Cnf) ->
-    DistOptions = #{name => random_node_name(), name_domain => name_domain(Cnf), hidden => true},
+    DistOptions = #{name_domain => name_domain(Cnf), hidden => true},
+    {ok, _} = net_kernel:start(random_node_name(), DistOptions),
+    assert_cookie(Cnf).
+-elif(?OTP_RELEASE >= 25).
+start_distribution(Cnf) ->
+    DistOptions = #{name_domain => name_domain(Cnf)},
+    {ok, _} = net_kernel:start(random_node_name(), DistOptions),
+    assert_cookie(Cnf).
+-else.
+start_distribution(Cnf) ->
+    DistOptions = [random_node_name(), name_domain(Cnf)],
     {ok, _} = net_kernel:start(DistOptions),
     assert_cookie(Cnf).
+-endif.
 
 random_node_name() ->
     list_to_atom("redbug-" ++ integer_to_list(rand:uniform(1000000000))).
@@ -343,7 +361,13 @@ stop(Target) ->
 start(RTPs) ->
     start(RTPs, []).
 
--spec start(RTPs::list(), Opts::map()) -> {Procs::integer(), Functions::integer()}.
+-type rtps() :: list() | 'send' | 'receive'.
+-type start_opts() :: map() | list(proplists:property()).
+-type redbug_name() :: atom().
+-spec start(RTPs::rtps(), Opts::start_opts()) ->
+          {Name::redbug_name(), Procs::integer(), Functions::integer()}
+              | redbug_already_started
+              | {timeout, any()}.
 
 start('send', Props)    -> start([send], Props);
 start('receive', Props) -> start(['receive'], Props);
