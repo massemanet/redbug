@@ -6,63 +6,63 @@
 -include_lib("eunit/include/eunit.hrl").
 
 millisecond_test_() ->
-  {setup,
-   fun () ->
-           redbug_start(?FUNCTION_NAME, "lists:sort", [print_msec]),
-           [1, 2, 3] = lists:sort([3, 2, 1]),
-           redbug_normal_stop(),
-           redbug_output(?FUNCTION_NAME)
-   end,
-   fun (_Content) ->
-           Filename = output_filename(?FUNCTION_NAME),
-           maybe_delete(Filename)
-   end,
-   fun (Content) ->
-           Timestamp = get_line_seg(Content, 1, 2),
-           [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                          get_line_seg(Content, 2, 2)),
-            ?_assertEqual({match, [{0,12}, {0,0}, {12,0}]},
-                          re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}(.*)", [{capture, all}]))]
-   end}.
+    {setup,
+     fun () ->
+             redbug_start(?FUNCTION_NAME, "lists:sort", [print_msec]),
+             [1, 2, 3] = lists:sort([3, 2, 1]),
+             redbug_normal_stop(),
+             redbug_output(?FUNCTION_NAME)
+     end,
+     fun (_Content) ->
+             Filename = output_filename(?FUNCTION_NAME),
+             maybe_delete(Filename)
+     end,
+     fun (Content) ->
+             Timestamp = get_line_seg(Content, 1, 2),
+             [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                            get_line_seg(Content, 2, 2)),
+              ?_assertEqual({match, [{0,12}, {0,0}, {12,0}]},
+                            re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}(.*)", [{capture, all}]))]
+     end}.
 
 arity_test_() ->
-  {setup,
-   fun () ->
-           redbug_start(?FUNCTION_NAME, "lists:sort", [arity]),
-           [1, 2, 3] = lists:sort([3, 2, 1]),
-           redbug_normal_stop(),
-           redbug_output(?FUNCTION_NAME)
-   end,
-   fun (_Content) ->
-           Filename = output_filename(?FUNCTION_NAME),
-           maybe_delete(Filename)
-   end,
-   fun (Content) ->
-           [?_assertEqual(<<"lists:sort/1">>,
-                          get_line_seg(Content, 2, 2)),
-            ?_assertEqual(3,
-                          length(re:split(get_line_seg(Content, 1, 2), "[:.]")))]
-   end}.
+    {setup,
+     fun () ->
+             redbug_start(?FUNCTION_NAME, "lists:sort", [arity]),
+             [1, 2, 3] = lists:sort([3, 2, 1]),
+             redbug_normal_stop(),
+             redbug_output(?FUNCTION_NAME)
+     end,
+     fun (_Content) ->
+             Filename = output_filename(?FUNCTION_NAME),
+             maybe_delete(Filename)
+     end,
+     fun (Content) ->
+             [?_assertEqual(<<"lists:sort/1">>,
+                            get_line_seg(Content, 2, 2)),
+              ?_assertEqual(3,
+                            length(re:split(get_line_seg(Content, 1, 2), "[:.]")))]
+     end}.
 
 microsecond_test_() ->
-  {setup,
-   fun () ->
-           redbug_start(?FUNCTION_NAME, "lists:sort", [{print_time_unit, microsecond}]),
-           [1, 2, 3] = lists:sort([3, 2, 1]),
-           redbug_normal_stop(),
-           redbug_output(?FUNCTION_NAME)
-   end,
-   fun (_Content) ->
-           Filename = output_filename(?FUNCTION_NAME),
-           maybe_delete(Filename)
-   end,
-   fun (Content) ->
-           Timestamp = get_line_seg(Content, 1, 2),
-           [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                          get_line_seg(Content, 2, 2)),
-            ?_assertEqual({match, [{0,15}, {0,0}, {15,0}]},
-                          re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6}(.*)", [{capture, all}]))]
-   end}.
+    {setup,
+     fun () ->
+             redbug_start(?FUNCTION_NAME, "lists:sort", [{print_time_unit, microsecond}]),
+             [1, 2, 3] = lists:sort([3, 2, 1]),
+             redbug_normal_stop(),
+             redbug_output(?FUNCTION_NAME)
+     end,
+     fun (_Content) ->
+             Filename = output_filename(?FUNCTION_NAME),
+             maybe_delete(Filename)
+     end,
+     fun (Content) ->
+             Timestamp = get_line_seg(Content, 1, 2),
+             [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                            get_line_seg(Content, 2, 2)),
+              ?_assertEqual({match, [{0,15}, {0,0}, {15,0}]},
+                            re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6}(.*)", [{capture, all}]))]
+     end}.
 
 buffered_test_() ->
     {setup,
@@ -140,12 +140,12 @@ proc_receive_test_() ->
      end}.
 
 ding_dong_listener()->
-  receive
-      P when is_pid(P) -> P ! ding;
-      quit -> ok
-  after
-      1500 -> timeout
-  end.
+    receive
+        P when is_pid(P) -> P ! ding;
+        quit -> ok
+    after
+        1500 -> timeout
+    end.
 
 call_time_test_() ->
     {setup,
@@ -350,25 +350,25 @@ loct_stripped_full_module_count_test_() ->
      end}.
 
 load_stripped_module() ->
-  TestCode =
+    TestCode =
         "-module(stripped_mod)."
         "-export([exported_fun/1])."
         "exported_fun(X) -> local_fun(X)."
         "local_fun(X) -> X*2.",
-  Opts = [deterministic, no_line_info],
+    Opts = [deterministic, no_line_info],
 
-  {ok, stripped_mod, Bin} = compile_str(TestCode, Opts),
-  {ok, {stripped_mod, StrippedBin}} = beam_lib:strip(Bin),
-  TmpFile = write_beam(stripped_mod, StrippedBin),
+    {ok, stripped_mod, Bin} = compile_str(TestCode, Opts),
+    {ok, {stripped_mod, StrippedBin}} = beam_lib:strip(Bin),
+    TmpFile = write_beam(stripped_mod, StrippedBin),
 
-  %% Verify beam_lib:strip does compressing
-  %% 16#1f8b: gzip magic numbers
-  %% 16#08: Compression method: deflate
-  <<16#1f, 16#8b, 16#08, _/binary>> = StrippedBin,
-  %% verify LocT is actually gone
-  {error, beam_lib, _} = beam_lib:chunks(StrippedBin, [locals]),
-  {module, stripped_mod} = code:load_binary(stripped_mod, TmpFile, StrippedBin),
-  stripped_mod.
+    %% Verify beam_lib:strip does compressing
+    %% 16#1f8b: gzip magic numbers
+    %% 16#08: Compression method: deflate
+    <<16#1f, 16#8b, 16#08, _/binary>> = StrippedBin,
+    %% verify LocT is actually gone
+    {error, beam_lib, _} = beam_lib:chunks(StrippedBin, [locals]),
+    {module, stripped_mod} = code:load_binary(stripped_mod, TmpFile, StrippedBin),
+    stripped_mod.
 
 compile_str(Str, Opts) ->
     Lines = string:split(Str, ".", all),
@@ -395,75 +395,75 @@ beam_filename(Name) ->
     filename(Name, ".beam").
 
 filename(Name, Ext) ->
-  atom_to_list(Name) ++ Ext.
+    atom_to_list(Name) ++ Ext.
 
 redbug_start(TestName, TraceFun, TraceOpts) ->
-  Filename = output_filename(TestName),
-  Options = [{print_file, Filename}, debug|TraceOpts],
-  {ProcessName, NoProcs, NoFuncs} = redbug:start(TraceFun, Options),
-  true = is_process_alive(whereis(ProcessName)),
-  true = (NoProcs + NoFuncs > 0).
+    Filename = output_filename(TestName),
+    Options = [{print_file, Filename}, debug|TraceOpts],
+    {ProcessName, NoProcs, NoFuncs} = redbug:start(TraceFun, Options),
+    true = is_process_alive(whereis(ProcessName)),
+    true = (NoProcs + NoFuncs > 0).
 
 redbug_normal_stop() ->
-  %% collect all traces
-  timer:sleep(100),
-  redbug:stop().
+    %% collect all traces
+    timer:sleep(100),
+    redbug:stop().
 
 write_beam(M, Bin) ->
-  TmpDir = filename:dirname(code:which(redbug_eunit)),
-  TmpFile = filename:join(TmpDir, beam_filename(M)),
-  ok = file:write_file(TmpFile, Bin),
-  {module, M} = code:load_abs(filename:rootname(TmpFile)),
-  TmpFile.
+    TmpDir = filename:dirname(code:which(redbug_eunit)),
+    TmpFile = filename:join(TmpDir, beam_filename(M)),
+    ok = file:write_file(TmpFile, Bin),
+    {module, M} = code:load_abs(filename:rootname(TmpFile)),
+    TmpFile.
 
 unload_module(M) ->
-  TmpDir = filename:dirname(code:which(redbug_eunit)),
-  TmpFile = filename:join(TmpDir, beam_filename(M)),
-  ok = file:delete(TmpFile),
-  code:purge(M).
+    TmpDir = filename:dirname(code:which(redbug_eunit)),
+    TmpFile = filename:join(TmpDir, beam_filename(M)),
+    ok = file:delete(TmpFile),
+    code:purge(M).
 
 redbug_output(Name) ->
-  Filename = output_filename(Name),
-  Content = read_file(Filename),
-  maybe_show(Content),
-  Content.
+    Filename = output_filename(Name),
+    Content = read_file(Filename),
+    maybe_show(Content),
+    Content.
 
 maybe_show(Content) ->
-  [io:fwrite("~p~n", [Content]) || in_shell()].
+    [io:fwrite("~p~n", [Content]) || in_shell()].
 
 lines(Content) ->
-  length(Content).
+    length(Content).
 
 get_line_seg(Content, Line, Seg) ->
-  hd(get_line_seg(Content, Line, Seg, Seg)).
+    hd(get_line_seg(Content, Line, Seg, Seg)).
 
 get_line_seg(Content, Line, SegF, SegL) when Line =< length(Content) ->
-  [e(S, e(Line, Content)) || S <- lists:seq(SegF, SegL)];
+    [e(S, e(Line, Content)) || S <- lists:seq(SegF, SegL)];
 get_line_seg(Content, Line, _SegF, _SegL) ->
-  error({line_out_of_bounds, Line, Content}).
+    error({line_out_of_bounds, Line, Content}).
 
 read_file(Filename) ->
-  {ok, C} = file:read_file(Filename),
-  [[S||S<-re:split(L, "\s"), S=/=<<>>]||L<-re:split(C, "\n"), L=/=<<>>].
+    {ok, C} = file:read_file(Filename),
+    [[S||S<-re:split(L, "\s"), S=/=<<>>]||L<-re:split(C, "\n"), L=/=<<>>].
 
 is_mfa(H) ->
-  L = byte_size(H),
-  {match, [{0, L}]} =:= re:run(H, "[a-zA-Z0-9\'/:_-]*/[0-9]+").
+    L = byte_size(H),
+    {match, [{0, L}]} =:= re:run(H, "[a-zA-Z0-9\'/:_-]*/[0-9]+").
 
 maybe_delete(Filename) ->
-  [file:delete(Filename) || not in_shell()].
+    [file:delete(Filename) || not in_shell()].
 
 in_shell() ->
-  lists:member("shell:eval_loop/3", stack()).
+    lists:member("shell:eval_loop/3", stack()).
 
 stack() ->
-  stack(self()).
+    stack(self()).
 
 stack(P) ->
-  [string:strip(e(2, (string:tokens(L, "(+)")))) || L<- bt(P), $0 =:= hd(L)].
+    [string:strip(e(2, (string:tokens(L, "(+)")))) || L<- bt(P), $0 =:= hd(L)].
 
 bt(P) ->
-  string:tokens(binary_to_list(e(2, (process_info(P, backtrace)))), "\n").
+    string:tokens(binary_to_list(e(2, (process_info(P, backtrace)))), "\n").
 
 e(N, L) when is_list(L) -> lists:nth(N, L);
 e(N, T) when is_tuple(T)-> element(N, T).
