@@ -59,7 +59,7 @@ return_stack_test() ->
                lists:usort([is_mfa(get_line_seg(Content, L, 2))||L<-Lines])).
 
 proc_send_test() ->
-  Pid = spawn(fun()->receive P when is_pid(P)->P!ding;quit->ok end end),
+  Pid = spawn(fun()->receive P when is_pid(P)->P!ding; quit->ok; after 1500 -> timeout end end),
   redbug_start(?FUNCTION_NAME, send, [{procs, Pid}]),
   Pid ! self(),
   redbug_normal_stop(),
@@ -68,7 +68,7 @@ proc_send_test() ->
                get_line_seg(Content, 2, 4)).
 
 proc_receive_test() ->
-  Pid = spawn(fun()->receive P when is_pid(P)->P!ding;quit->ok end end),
+  Pid = spawn(fun()->receive P when is_pid(P)->P!ding; quit->ok; after 1500 -> timeout end end),
   redbug_start(?FUNCTION_NAME, 'receive', [{procs, Pid}]),
   Pid ! pling,
   redbug_normal_stop(),
@@ -191,7 +191,7 @@ load_stripped_module() ->
         "-export([exported_fun/1])."
         "exported_fun(X) -> local_fun(X)."
         "local_fun(X) -> X*2.",
-  Opts = [determenistic, no_line_info],
+  Opts = [deterministic, no_line_info],
 
   {ok, stripped_mod, Bin} = compile_str(TestCode, Opts),
   {ok, {stripped_mod, StrippedBin}} = beam_lib:strip(Bin),
@@ -281,7 +281,7 @@ read_file(Filename) ->
 
 is_mfa(H) ->
   L = byte_size(H),
-  {match, [{0, L}]} =:= re:run(H, "[a-zA_Z0-9\'/:_-]*/[0-9]+").
+  {match, [{0, L}]} =:= re:run(H, "[a-zA-Z0-9\'/:_-]*/[0-9]+").
 
 maybe_delete(Filename) ->
   [file:delete(Filename) || not in_shell()].
