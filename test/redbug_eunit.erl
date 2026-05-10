@@ -23,7 +23,7 @@ millisecond_test_() ->
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual({match, [{0,12}, {0,0}, {12,0}]},
-                             re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}(.*)", [{capture, all}]))]
+                             re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}(.*)", [{capture, all}]))]
       end}}.
 
 arity_test_() ->
@@ -64,7 +64,7 @@ microsecond_test_() ->
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual({match, [{0,15}, {0,0}, {15,0}]},
-                             re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6}(.*)", [{capture, all}]))]
+                             re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}(.*)", [{capture, all}]))]
       end}}.
 
 buffered_test_() ->
@@ -104,8 +104,8 @@ return_stack_test_() ->
               Lines = lists:seq(3, lines(Content)-1),
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
-               ?_assertEqual([true],
-                             lists:usort([is_mfa(get_line_seg(Content, L, 2))||L<-Lines]))]
+               ?_assertNotEqual([], Lines),
+               ?_assert(lists:all(fun (L) -> is_mfa(get_line_seg(Content, L, 2)) end, Lines))]
       end}}.
 
 proc_send_test_() ->
@@ -376,7 +376,7 @@ load_stripped_module() ->
 
     {ok, stripped_mod, Bin} = compile_str(TestCode, Opts),
     {ok, {stripped_mod, StrippedBin}} = beam_lib:strip(Bin),
-    TmpFile = write_beam(stripped_mod, StrippedBin),
+    write_beam(stripped_mod, StrippedBin),
 
     %% Verify beam_lib:strip does compressing
     %% 16#1f8b: gzip magic numbers
@@ -384,7 +384,6 @@ load_stripped_module() ->
     <<16#1f, 16#8b, 16#08, _/binary>> = StrippedBin,
     %% verify LocT is actually gone
     {error, beam_lib, _} = beam_lib:chunks(StrippedBin, [locals]),
-    {module, stripped_mod} = code:load_binary(stripped_mod, TmpFile, StrippedBin),
     stripped_mod.
 
 compile_str(Str, Opts) ->
@@ -430,13 +429,13 @@ write_beam(M, Bin) ->
     TmpDir = filename:dirname(code:which(redbug_eunit)),
     TmpFile = filename:join(TmpDir, beam_filename(M)),
     ok = file:write_file(TmpFile, Bin),
-    {module, M} = code:load_abs(filename:rootname(TmpFile)),
-    TmpFile.
+    {module, M} = code:load_abs(filename:rootname(TmpFile)).
 
 unload_module(M) ->
     TmpDir = filename:dirname(code:which(redbug_eunit)),
     TmpFile = filename:join(TmpDir, beam_filename(M)),
     ok = file:delete(TmpFile),
+    code:delete(M),
     code:purge(M).
 
 redbug_output(Name) ->
@@ -461,7 +460,7 @@ get_line_seg(Content, Line, _SegF, _SegL) ->
 
 read_file(Filename) ->
     {ok, C} = file:read_file(Filename),
-    [[S||S<-re:split(L, "\s"), S=/=<<>>]||L<-re:split(C, "\n"), L=/=<<>>].
+    [[S||S<-re:split(L, "\\s"), S=/=<<>>]||L<-re:split(C, "\n"), L=/=<<>>].
 
 is_mfa(H) ->
     L = byte_size(H),
@@ -477,7 +476,7 @@ stack() ->
     stack(self()).
 
 stack(P) ->
-    [string:strip(e(2, (string:tokens(L, "(+)")))) || L<- bt(P), $0 =:= hd(L)].
+    [string:trim(e(2, (string:tokens(L, "(+)")))) || L<- bt(P), $0 =:= hd(L)].
 
 bt(P) ->
     string:tokens(binary_to_list(e(2, (process_info(P, backtrace)))), "\n").
