@@ -354,7 +354,18 @@ stop() ->
 stop(Target) ->
     case whereis(redbug_name(Target)) of
         undefined -> not_started;
-        Pid -> Pid ! stop, stopped
+        Pid ->
+            sync_stop(Pid)
+    end.
+
+sync_stop(Pid) ->
+    Ref = erlang:monitor(process, Pid),
+    Pid ! stop,
+    receive
+        {'DOWN', Ref, process, Pid, _} -> stopped
+    after 5000 ->
+            erlang:demonitor(Ref, [flush]),
+            {error, timeout}
     end.
 
 %% @equiv start(RTPs, [])

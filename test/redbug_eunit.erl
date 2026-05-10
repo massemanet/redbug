@@ -399,9 +399,9 @@ redbug_start(TestName, TraceFun, TraceOpts) ->
   {_, _, _} = redbug:start(TraceFun, Options).
 
 redbug_normal_stop() ->
+  %% collect all traces
   timer:sleep(100),
-  redbug:stop(),
-  timer:sleep(100).
+  redbug:stop().
 
 write_beam(M, Bin) ->
   TmpDir = filename:dirname(code:which(redbug_eunit)),
