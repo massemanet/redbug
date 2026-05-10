@@ -256,9 +256,9 @@ blocking_test_() ->
               %%  {call,{{erlang,monitor,2},<<>>},
               %%        {<0.445.0>,{erlang,apply,2}},
               %%        {20,10,36,706695}}]
-              [?_assertEqual([{erlang, demonitor, 1},
-                              {erlang, monitor, 2}],
-                             [MFA || {call, {MFA, _}, _, _} <- Msgs])]
+              [?_assertMatch([{call, {{erlang, demonitor, 1}, _}, _, _},
+                              {call, {{erlang, monitor, 2}, _}, _, _}],
+                             Msgs)]
       end}}.
 
 trace_file_test_() ->
@@ -278,10 +278,9 @@ trace_file_test_() ->
               %% Example output:
               %% [{trace_ts,<0.445.0>,return_from,{lists,sort,1},[1,2,3],{1778,443837,230786}},
               %%  {trace_ts,<0.445.0>,call,{lists,sort,[[3,2,1]]},{1778,443837,230776}}]
-              [?_assertEqual(sort,
-                             e(2, e(4, e(1, Msgs)))),
-               ?_assertEqual(sort,
-                             e(2, e(4, e(2, Msgs))))]
+              [?_assertMatch([{trace_ts, _, return_from, {lists, sort, 1}, [1, 2, 3], _},
+                              {trace_ts, _, call, {lists, sort, [[3, 2, 1]]}, _}],
+                             Msgs)]
       end}}.
 
 no_return_test_() ->
