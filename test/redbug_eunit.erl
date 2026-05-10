@@ -19,6 +19,9 @@ millisecond_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 19:58:26.663 <0.445.0>({erlang,apply,2})
+              %% % lists:sort([3,2,1])
               Timestamp = get_line_seg(Content, 1, 2),
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
@@ -40,6 +43,9 @@ arity_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 19:58:26 <0.445.0>({erlang,apply,2})
+              %% % lists:sort/1
               [?_assertEqual(<<"lists:sort/1">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual(3,
@@ -60,6 +66,9 @@ microsecond_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 19:58:26.927090 <0.445.0>({erlang,apply,2})
+              %% % lists:sort([3,2,1])
               Timestamp = get_line_seg(Content, 1, 2),
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
@@ -81,6 +90,12 @@ buffered_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 19:58:27 <0.445.0>({erlang,apply,2})
+              %% % lists:sort([3,2,1])
+              %%
+              %% % 19:58:27 <0.445.0>({erlang,apply,2})
+              %% % lists:sort/1 -> [1,2,3]
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual([<<"lists:sort/1">>, <<"->">>, <<"[1,2,3]">>],
@@ -101,6 +116,19 @@ return_stack_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 19:58:27 <0.445.0>({erlang,apply,2})
+              %% % lists:sort([3,2,1])
+              %% %   redbug_eunit:'-return_stack_test_/0-fun-9-'/0
+              %% %   eunit_test:enter_context/4
+              %% %   eunit_proc:run_group/2
+              %% %   eunit_proc:tests_inorder/3
+              %% %   eunit_proc:with_timeout/3
+              %% %   eunit_proc:run_group/2
+              %% %   eunit_proc:tests_inorder/3
+              %% %   eunit_proc:with_timeout/3
+              %% %   eunit_proc:run_group/2
+              %% %   eunit_proc:child_process/2
               Lines = lists:seq(3, lines(Content)-1),
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
@@ -123,6 +151,9 @@ proc_send_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 19:58:27 <0.657.0>(dead)
+              %% % <0.445.0>({erlang,apply,2}) <<< ding
               [?_assertEqual(<<"ding">>,
                              get_line_seg(Content, 2, 4))]
       end}}.
@@ -142,6 +173,9 @@ proc_receive_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 20:04:32 <0.665.0>({erlang,apply,2})
+              %% % <<< pling
               [?_assertEqual(<<"pling">>,
                              get_line_seg(Content, 2, 3))]
       end}}.
@@ -168,6 +202,10 @@ call_time_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 19:55:17 <0.445.0>({erlang,apply,2})
+              %% % lists:sort([3,2,1])
+              %% %      1 :      2 :    2.0 : lists:sort/1
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual(<<"lists:sort/1">>,
@@ -188,6 +226,11 @@ call_count_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 20:04:32 <0.445.0>({erlang,apply,2})
+              %% % lists:sort([3,2,1])
+              %%
+              %% %      1 : lists:sort/1
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual(<<"lists:sort/1">>,
@@ -206,6 +249,13 @@ blocking_test_() ->
               ok
       end,
       fun (Msgs) ->
+              %% Example output:
+              %% [{call,{{erlang,demonitor,1},<<>>},
+              %%        {<0.445.0>,{erlang,apply,2}},
+              %%        {20,10,36,706682}},
+              %%  {call,{{erlang,monitor,2},<<>>},
+              %%        {<0.445.0>,{erlang,apply,2}},
+              %%        {20,10,36,706695}}]
               [?_assertEqual([{erlang, demonitor, 1},
                               {erlang, monitor, 2}],
                              [MFA || {call, {MFA, _}, _, _} <- Msgs])]
@@ -225,6 +275,9 @@ trace_file_test_() ->
               maybe_delete("foo0.trc")
       end,
       fun (Msgs) ->
+              %% Example output:
+              %% [{trace_ts,<0.445.0>,return_from,{lists,sort,1},[1,2,3],{1778,443837,230786}},
+              %%  {trace_ts,<0.445.0>,call,{lists,sort,[[3,2,1]]},{1778,443837,230776}}]
               [?_assertEqual(sort,
                              e(2, e(4, e(1, Msgs)))),
                ?_assertEqual(sort,
@@ -245,6 +298,12 @@ no_return_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 20:04:33 <0.445.0>({erlang,apply,2})
+              %% % lists:sort([3,2,1])
+              %%
+              %% % 20:04:33 <0.445.0>({erlang,apply,2})
+              %% % lists:sort/1 -> '...'
               [?_assertEqual(<<"lists:sort([3,2,1])">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual([<<"lists:sort/1">>, <<"->">>, <<"'...'">>],
@@ -265,6 +324,12 @@ improper_list_test_() ->
               maybe_delete(Filename)
       end,
       fun (Content) ->
+              %% Example output:
+              %% % 20:04:33 <0.445.0>({erlang,apply,2})
+              %% % redbug_eunit:ipl()
+              %%
+              %% % 20:04:33 <0.445.0>({erlang,apply,2})
+              %% % redbug_eunit:ipl/0 -> [a,b|c]
               [?_assertEqual(<<"redbug_eunit:ipl()">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual([<<"redbug_eunit:ipl/0">>, <<"->">>, <<"[a,b|c]">>],
@@ -291,6 +356,12 @@ loct_stripped_non_arity_return_test_() ->
               maybe_delete(Filename)
       end,
       fun ({_M, Content}) ->
+              %% Example output:
+              %% % 20:04:33 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:local_fun(5)
+              %%
+              %% % 20:04:33 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:local_fun/1 -> 10
               [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
@@ -314,6 +385,18 @@ loct_stripped_full_module_return_test_() ->
               maybe_delete(Filename)
       end,
       fun ({_M, Content}) ->
+              %% Example output:
+              %% % 20:10:37 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:exported_fun(5)
+              %%
+              %% % 20:10:37 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:local_fun(5)
+              %%
+              %% % 20:10:37 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:local_fun/1 -> 10
+              %%
+              %% % 20:10:37 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:exported_fun/1 -> 10
               [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                              get_line_seg(Content, 4, 2)),
                ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
@@ -337,6 +420,11 @@ loct_stripped_non_arity_count_test_() ->
               maybe_delete(Filename)
       end,
       fun ({_M, Content}) ->
+              %% Example output:
+              %% % 20:10:37 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:local_fun(5)
+              %%
+              %% %      1 : stripped_mod:local_fun/1
               [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                              get_line_seg(Content, 2, 2)),
                ?_assertEqual(<<"stripped_mod:local_fun/1">>,
@@ -360,6 +448,16 @@ loct_stripped_full_module_count_test_() ->
               maybe_delete(Filename)
       end,
       fun ({_M, Content}) ->
+              %% Example output:
+              %% % 20:10:38 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:exported_fun(5)
+              %%
+              %% % 20:10:38 <0.445.0>({erlang,apply,2})
+              %% % stripped_mod:local_fun(5)
+              %%
+              %% %      1 : stripped_mod:local_fun/1
+              %%
+              %% %      1 : stripped_mod:exported_fun/1
               [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                              get_line_seg(Content, 4, 2)),
                ?_assertEqual(<<"stripped_mod:local_fun/1">>,
