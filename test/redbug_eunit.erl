@@ -400,7 +400,9 @@ filename(Name, Ext) ->
 redbug_start(TestName, TraceFun, TraceOpts) ->
   Filename = output_filename(TestName),
   Options = [{print_file, Filename}, debug|TraceOpts],
-  {_, _, _} = redbug:start(TraceFun, Options).
+  {ProcessName, NoProcs, NoFuncs} = redbug:start(TraceFun, Options),
+  true = is_process_alive(whereis(ProcessName)),
+  true = (NoProcs + NoFuncs > 0).
 
 redbug_normal_stop() ->
   %% collect all traces
@@ -435,8 +437,10 @@ lines(Content) ->
 get_line_seg(Content, Line, Seg) ->
   hd(get_line_seg(Content, Line, Seg, Seg)).
 
-get_line_seg(Content, Line, SegF, SegL) ->
-  [e(S, e(Line, Content)) || S <- lists:seq(SegF, SegL)].
+get_line_seg(Content, Line, SegF, SegL) when Line =< length(Content) ->
+  [e(S, e(Line, Content)) || S <- lists:seq(SegF, SegL)];
+get_line_seg(Content, Line, _SegF, _SegL) ->
+  error({line_out_of_bounds, Line, Content}).
 
 read_file(Filename) ->
   {ok, C} = file:read_file(Filename),
