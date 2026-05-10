@@ -6,138 +6,145 @@
 -include_lib("eunit/include/eunit.hrl").
 
 millisecond_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort", [print_msec]),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             Timestamp = get_line_seg(Content, 1, 2),
-             [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual({match, [{0,12}, {0,0}, {12,0}]},
-                            re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}(.*)", [{capture, all}]))]
-     end}.
+    {"option `print_msec' produces HH:MM:SS.mmm timestamps",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort", [print_msec]),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              Timestamp = get_line_seg(Content, 1, 2),
+              [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual({match, [{0,12}, {0,0}, {12,0}]},
+                             re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}(.*)", [{capture, all}]))]
+      end}}.
 
 arity_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort", [arity]),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"lists:sort/1">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual(3,
-                            length(re:split(get_line_seg(Content, 1, 2), "[:.]")))]
-     end}.
+    {"option `arity' prints function arity instead of arguments",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort", [arity]),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"lists:sort/1">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual(3,
+                             length(re:split(get_line_seg(Content, 1, 2), "[:.]")))]
+      end}}.
 
 microsecond_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort", [{print_time_unit, microsecond}]),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             Timestamp = get_line_seg(Content, 1, 2),
-             [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual({match, [{0,15}, {0,0}, {15,0}]},
-                            re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6}(.*)", [{capture, all}]))]
-     end}.
+    {"option `{print_time_unit, microsecond}' produces HH:MM:SS.mmmmmm timestamps",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort", [{print_time_unit, microsecond}]),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              Timestamp = get_line_seg(Content, 1, 2),
+              [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual({match, [{0,15}, {0,0}, {15,0}]},
+                             re:run(Timestamp, "(.*)[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6}(.*)", [{capture, all}]))]
+      end}}.
 
 buffered_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort->return", [buffered]),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual([<<"lists:sort/1">>, <<"->">>, <<"[1,2,3]">>],
-                            get_line_seg(Content, 4, 2, 4))]
-     end}.
+    {"option `buffered' collects call and return into a single message",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort->return", [buffered]),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual([<<"lists:sort/1">>, <<"->">>, <<"[1,2,3]">>],
+                             get_line_seg(Content, 4, 2, 4))]
+      end}}.
 
 return_stack_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort->stack", []),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             Lines = lists:seq(3, lines(Content)-1),
-             [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual([true],
-                            lists:usort([is_mfa(get_line_seg(Content, L, 2))||L<-Lines]))]
-     end}.
+    {"action `stack' prints the call stack",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort->stack", []),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              Lines = lists:seq(3, lines(Content)-1),
+              [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual([true],
+                             lists:usort([is_mfa(get_line_seg(Content, L, 2))||L<-Lines]))]
+      end}}.
 
 proc_send_test_() ->
-    {setup,
-     fun () ->
-             Pid = spawn(fun ding_dong_listener/0),
-             redbug_start(?FUNCTION_NAME, send, [{procs, Pid}]),
-             Pid ! self(),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"ding">>,
-                            get_line_seg(Content, 2, 4))]
-     end}.
+    {"trace atom `send' captures messages sent by a process specified by option `procs'",
+     {setup,
+      fun () ->
+              Pid = spawn(fun ding_dong_listener/0),
+              redbug_start(?FUNCTION_NAME, send, [{procs, Pid}]),
+              Pid ! self(),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"ding">>,
+                             get_line_seg(Content, 2, 4))]
+      end}}.
 
 proc_receive_test_() ->
-    {setup,
-     fun () ->
-             Pid = spawn(fun ding_dong_listener/0),
-             redbug_start(?FUNCTION_NAME, 'receive', [{procs, Pid}]),
-             Pid ! pling,
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"pling">>,
-                            get_line_seg(Content, 2, 3))]
-     end}.
+    {"trace atom `receive' captures messages received by a process specified by option `procs'",
+     {setup,
+      fun () ->
+              Pid = spawn(fun ding_dong_listener/0),
+              redbug_start(?FUNCTION_NAME, 'receive', [{procs, Pid}]),
+              Pid ! pling,
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"pling">>,
+                             get_line_seg(Content, 2, 3))]
+      end}}.
 
 ding_dong_listener()->
     receive
@@ -148,206 +155,216 @@ ding_dong_listener()->
     end.
 
 call_time_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort->time", []),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual(<<"lists:sort/1">>,
-                            get_line_seg(Content, 3, 8))]
-     end}.
+    {"action `time' reports the call duration",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort->time", []),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual(<<"lists:sort/1">>,
+                             get_line_seg(Content, 3, 8))]
+      end}}.
 
 call_count_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort->count", []),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual(<<"lists:sort/1">>,
-                            get_line_seg(Content, 3, 4))]
-     end}.
+    {"action `count' reports the number of calls",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort->count", []),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual(<<"lists:sort/1">>,
+                             get_line_seg(Content, 3, 4))]
+      end}}.
 
 blocking_test_() ->
-    {setup,
-     fun () ->
-             Options = [blocking, arity, {time, 499}, debug],
-             {timeout, Msgs} = redbug:start(["erlang:demonitor", "erlang:monitor"], Options),
-             Msgs
-     end,
-     fun (_Msgs) ->
-             ok
-     end,
-     fun (Msgs) ->
-             [?_assertEqual([{erlang, demonitor, 1},
-                             {erlang, monitor, 2}],
-                            [MFA || {call, {MFA, _}, _, _} <- Msgs])]
-     end}.
+    {"option `blocking' returns trace results synchronously",
+     {setup,
+      fun () ->
+              Options = [blocking, arity, {time, 499}, debug],
+              {timeout, Msgs} = redbug:start(["erlang:demonitor", "erlang:monitor"], Options),
+              Msgs
+      end,
+      fun (_Msgs) ->
+              ok
+      end,
+      fun (Msgs) ->
+              [?_assertEqual([{erlang, demonitor, 1},
+                              {erlang, monitor, 2}],
+                             [MFA || {call, {MFA, _}, _, _} <- Msgs])]
+      end}}.
 
 trace_file_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort->return", [{file, "foo"}]),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             {2, Msgs} = replay_trc:go("foo0.trc", fun(E, A) -> [E]++A end, []),
-             Msgs
-     end,
-     fun (_Msgs) ->
-             maybe_delete("foo0.trc")
-     end,
-     fun (Msgs) ->
-             [?_assertEqual(sort,
-                            e(2, e(4, e(1, Msgs)))),
-              ?_assertEqual(sort,
-                            e(2, e(4, e(2, Msgs))))]
-     end}.
+    {"option `file' writes trace files",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort->return", [{file, "foo"}]),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              {2, Msgs} = replay_trc:go("foo0.trc", fun(E, A) -> [E]++A end, []),
+              Msgs
+      end,
+      fun (_Msgs) ->
+              maybe_delete("foo0.trc")
+      end,
+      fun (Msgs) ->
+              [?_assertEqual(sort,
+                             e(2, e(4, e(1, Msgs)))),
+               ?_assertEqual(sort,
+                             e(2, e(4, e(2, Msgs))))]
+      end}}.
 
 no_return_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "lists:sort->return", [{print_return, false}]),
-             [1, 2, 3] = lists:sort([3, 2, 1]),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"lists:sort([3,2,1])">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual([<<"lists:sort/1">>, <<"->">>, <<"'...'">>],
-                            get_line_seg(Content, 4, 2, 4))]
-     end}.
+    {"option `{print_return, false}' suppresses the return value",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "lists:sort->return", [{print_return, false}]),
+              [1, 2, 3] = lists:sort([3, 2, 1]),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"lists:sort([3,2,1])">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual([<<"lists:sort/1">>, <<"->">>, <<"'...'">>],
+                             get_line_seg(Content, 4, 2, 4))]
+      end}}.
 
 improper_list_test_() ->
-    {setup,
-     fun () ->
-             redbug_start(?FUNCTION_NAME, "redbug_eunit:ipl()->return", []),
-             ipl(),
-             redbug_normal_stop(),
-             redbug_output(?FUNCTION_NAME)
-     end,
-     fun (_Content) ->
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun (Content) ->
-             [?_assertEqual(<<"redbug_eunit:ipl()">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual([<<"redbug_eunit:ipl/0">>, <<"->">>, <<"[a,b|c]">>],
-                            get_line_seg(Content, 4, 2, 4))]
-     end}.
+    {"improper lists are properly output",
+     {setup,
+      fun () ->
+              redbug_start(?FUNCTION_NAME, "redbug_eunit:ipl()->return", []),
+              ipl(),
+              redbug_normal_stop(),
+              redbug_output(?FUNCTION_NAME)
+      end,
+      fun (_Content) ->
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun (Content) ->
+              [?_assertEqual(<<"redbug_eunit:ipl()">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual([<<"redbug_eunit:ipl/0">>, <<"->">>, <<"[a,b|c]">>],
+                             get_line_seg(Content, 4, 2, 4))]
+      end}}.
 
 %% test printing of improper lists
 ipl() -> [a, b|c].
 
 loct_stripped_non_arity_return_test_() ->
-    {setup,
-     fun () ->
-             M = load_stripped_module(),
-             redbug_start(?FUNCTION_NAME, "stripped_mod:local_fun->return", []),
-             M:exported_fun(5),
-             redbug_normal_stop(),
-             Content = redbug_output(?FUNCTION_NAME),
-             {M, Content}
-     end,
-     fun ({M, _Content}) ->
-             unload_module(M),
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun ({_M, Content}) ->
-             [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
-                            get_line_seg(Content, 4, 2, 4))]
-     end}.
+    {"tracing a non-exported function with action `return' works when LocT is stripped",
+     {setup,
+      fun () ->
+              M = load_stripped_module(),
+              redbug_start(?FUNCTION_NAME, "stripped_mod:local_fun->return", []),
+              M:exported_fun(5),
+              redbug_normal_stop(),
+              Content = redbug_output(?FUNCTION_NAME),
+              {M, Content}
+      end,
+      fun ({M, _Content}) ->
+              unload_module(M),
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun ({_M, Content}) ->
+              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
+                             get_line_seg(Content, 4, 2, 4))]
+      end}}.
 
 loct_stripped_full_module_return_test_() ->
-    {setup,
-     fun () ->
-             M = load_stripped_module(),
-             redbug_start(?FUNCTION_NAME, "stripped_mod->return", []),
-             M:exported_fun(5),
-             redbug_normal_stop(),
-             Content = redbug_output(?FUNCTION_NAME),
-             {M, Content}
-     end,
-     fun ({M, _Content}) ->
-             unload_module(M),
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun ({_M, Content}) ->
-             [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
-                            get_line_seg(Content, 4, 2)),
-              ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
-                            get_line_seg(Content, 6, 2, 4))]
-     end}.
+    {"tracing a full module with action `return' works when LocT is stripped",
+     {setup,
+      fun () ->
+              M = load_stripped_module(),
+              redbug_start(?FUNCTION_NAME, "stripped_mod->return", []),
+              M:exported_fun(5),
+              redbug_normal_stop(),
+              Content = redbug_output(?FUNCTION_NAME),
+              {M, Content}
+      end,
+      fun ({M, _Content}) ->
+              unload_module(M),
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun ({_M, Content}) ->
+              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
+                             get_line_seg(Content, 4, 2)),
+               ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
+                             get_line_seg(Content, 6, 2, 4))]
+      end}}.
 
 loct_stripped_non_arity_count_test_() ->
-    {setup,
-     fun () ->
-             M = load_stripped_module(),
-             redbug_start(?FUNCTION_NAME, "stripped_mod:local_fun->count", []),
-             M:exported_fun(5),
-             redbug_normal_stop(),
-             Content = redbug_output(?FUNCTION_NAME),
-             {M, Content}
-     end,
-     fun ({M, _Content}) ->
-             unload_module(M),
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun ({_M, Content}) ->
-             [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
-                            get_line_seg(Content, 2, 2)),
-              ?_assertEqual(<<"stripped_mod:local_fun/1">>,
-                            get_line_seg(Content, 3, 4))]
-     end}.
+    {"tracing a non-exported function with action count works when LocT is stripped",
+     {setup,
+      fun () ->
+              M = load_stripped_module(),
+              redbug_start(?FUNCTION_NAME, "stripped_mod:local_fun->count", []),
+              M:exported_fun(5),
+              redbug_normal_stop(),
+              Content = redbug_output(?FUNCTION_NAME),
+              {M, Content}
+      end,
+      fun ({M, _Content}) ->
+              unload_module(M),
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun ({_M, Content}) ->
+              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
+                             get_line_seg(Content, 2, 2)),
+               ?_assertEqual(<<"stripped_mod:local_fun/1">>,
+                             get_line_seg(Content, 3, 4))]
+      end}}.
 
 loct_stripped_full_module_count_test_() ->
-    {setup,
-     fun () ->
-             M = load_stripped_module(),
-             redbug_start(?FUNCTION_NAME, "stripped_mod->count", []),
-             M:exported_fun(5),
-             redbug_normal_stop(),
-             Content = redbug_output(?FUNCTION_NAME),
-             {M, Content}
-     end,
-     fun ({M, _}) ->
-             unload_module(M),
-             Filename = output_filename(?FUNCTION_NAME),
-             maybe_delete(Filename)
-     end,
-     fun ({_M, Content}) ->
-             [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
-                            get_line_seg(Content, 4, 2)),
-              ?_assertEqual(<<"stripped_mod:local_fun/1">>,
-                            get_line_seg(Content, 5, 4))]
-     end}.
+    {"tracing a full module with action `count' works when LocT is stripped",
+     {setup,
+      fun () ->
+              M = load_stripped_module(),
+              redbug_start(?FUNCTION_NAME, "stripped_mod->count", []),
+              M:exported_fun(5),
+              redbug_normal_stop(),
+              Content = redbug_output(?FUNCTION_NAME),
+              {M, Content}
+      end,
+      fun ({M, _}) ->
+              unload_module(M),
+              Filename = output_filename(?FUNCTION_NAME),
+              maybe_delete(Filename)
+      end,
+      fun ({_M, Content}) ->
+              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
+                             get_line_seg(Content, 4, 2)),
+               ?_assertEqual(<<"stripped_mod:local_fun/1">>,
+                             get_line_seg(Content, 5, 4))]
+      end}}.
 
 load_stripped_module() ->
     TestCode =
