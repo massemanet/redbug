@@ -268,14 +268,15 @@ loct_stripped_non_arity_return_test_() ->
              redbug_start(?FUNCTION_NAME, "stripped_mod:local_fun->return", []),
              M:exported_fun(5),
              redbug_normal_stop(),
-             unload_module(M),
-             redbug_output(?FUNCTION_NAME)
+             Content = redbug_output(?FUNCTION_NAME),
+             {M, Content}
      end,
-     fun (_Content) ->
+     fun ({M, _Content}) ->
+             unload_module(M),
              Filename = output_filename(?FUNCTION_NAME),
              maybe_delete(Filename)
      end,
-     fun (Content) ->
+     fun ({_M, Content}) ->
              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                             get_line_seg(Content, 2, 2)),
               ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
@@ -289,14 +290,15 @@ loct_stripped_full_module_return_test_() ->
              redbug_start(?FUNCTION_NAME, "stripped_mod->return", []),
              M:exported_fun(5),
              redbug_normal_stop(),
-             unload_module(M),
-             redbug_output(?FUNCTION_NAME)
+             Content = redbug_output(?FUNCTION_NAME),
+             {M, Content}
      end,
-     fun (_Content) ->
+     fun ({M, _Content}) ->
+             unload_module(M),
              Filename = output_filename(?FUNCTION_NAME),
              maybe_delete(Filename)
      end,
-     fun (Content) ->
+     fun ({_M, Content}) ->
              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                             get_line_seg(Content, 4, 2)),
               ?_assertEqual([<<"stripped_mod:local_fun/1">>, <<"->">>, <<"10">>],
@@ -310,14 +312,15 @@ loct_stripped_non_arity_count_test_() ->
              redbug_start(?FUNCTION_NAME, "stripped_mod:local_fun->count", []),
              M:exported_fun(5),
              redbug_normal_stop(),
-             unload_module(M),
-             redbug_output(?FUNCTION_NAME)
+             Content = redbug_output(?FUNCTION_NAME),
+             {M, Content}
      end,
-     fun (_Content) ->
+     fun ({M, _Content}) ->
+             unload_module(M),
              Filename = output_filename(?FUNCTION_NAME),
              maybe_delete(Filename)
      end,
-     fun (Content) ->
+     fun ({_M, Content}) ->
              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                             get_line_seg(Content, 2, 2)),
               ?_assertEqual(<<"stripped_mod:local_fun/1">>,
@@ -331,14 +334,15 @@ loct_stripped_full_module_count_test_() ->
              redbug_start(?FUNCTION_NAME, "stripped_mod->count", []),
              M:exported_fun(5),
              redbug_normal_stop(),
-             unload_module(M),
-             redbug_output(?FUNCTION_NAME)
+             Content = redbug_output(?FUNCTION_NAME),
+             {M, Content}
      end,
-     fun (_Content) ->
+     fun ({M, _}) ->
+             unload_module(M),
              Filename = output_filename(?FUNCTION_NAME),
              maybe_delete(Filename)
      end,
-     fun (Content) ->
+     fun ({_M, Content}) ->
              [?_assertEqual(<<"stripped_mod:local_fun(5)">>,
                             get_line_seg(Content, 4, 2)),
               ?_assertEqual(<<"stripped_mod:local_fun/1">>,
