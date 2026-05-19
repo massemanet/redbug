@@ -307,16 +307,17 @@ help_text() ->
     , ""].
 
 help_script() ->
-    case catch escript:script_name() of
-        {'EXIT', _} ->
-            flat("~s~n~s",
-                 ["redbug:start(Trc) -> start(Trc, []).",
-                  "redbug:start(Trc, Opts)."]);
+    try escript:script_name() of
         Escript ->
             flat("~s ~s~n~s",
                  [Escript,
                   "[-Opt Value [...]] TargetNode Trc [Trc...]",
                   "(you may need to quote trace patterns containing spaces etc)"])
+    catch
+        _:_ ->
+            flat("~s~n~s",
+                 ["redbug:start(Trc) -> start(Trc, []).",
+                  "redbug:start(Trc, Opts)."])
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -339,8 +340,8 @@ dtop(Cfg) ->
     end.
 
 dtop_cfg(Cfg) ->
-    [redbug_dtop:sort(S) || (S = maps:get(sort, Cfg, "")) =/= ""],
-    [redbug_dtop:max_prcs(M) || (M = maps:get(max_procs, Cfg, "")) =/= ""].
+    [redbug_dtop:sort(S) || S <- [maps:get(sort, Cfg, "")], S =/= ""],
+    [redbug_dtop:max_prcs(M) || M <- [maps:get(max_procs, Cfg, "")], M =/= ""].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API from erlang shell
@@ -532,7 +533,8 @@ do_start(OCnf) ->
     Cnf#cnf{trc_pid=redbug_targ:start(Cnf#cnf.target, pack(Cnf))}.
 
 maybe_new_target(Cnf = #cnf{target=Target}) ->
-    case lists:member($@, Str=atom_to_list(Target)) of
+    Str=atom_to_list(Target),
+    case lists:member($@, Str) of
         true -> Cnf;
         false-> Cnf#cnf{target=list_to_atom(Str++"@"++element(2, inet:gethostname()))}
     end.
