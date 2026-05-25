@@ -340,8 +340,8 @@ dtop(Cfg) ->
     end.
 
 dtop_cfg(Cfg) ->
-    [redbug_dtop:sort(S) || S <- maps:get(sort, Cfg, ""), S =/= ""],
-    [redbug_dtop:max_prcs(M) || M <- maps:get(max_procs, Cfg, ""), M =/= ""].
+    [redbug_dtop:sort(S) || S <- [maps:get(sort, Cfg, "")], S =/= ""],
+    [redbug_dtop:max_prcs(M) || M <- [maps:get(max_procs, Cfg, "")], M =/= ""].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API from erlang shell

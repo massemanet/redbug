@@ -38,26 +38,21 @@ generate(AST) ->
 
 -spec parse(string()) -> ast().
 parse(Str) ->
-    try
-        case redbug_parser:parse(scan(Str)) of
-            {ok, AST}              -> AST;
-            {error, {_, _, Error}} -> exit({parse_error, lists:flatten(Error)})
-        end
+    try redbug_parser:parse(scan(Str)) of
+        {ok, AST}              -> AST;
+        {error, {_, _, Error}} -> exit({parse_error, lists:flatten(Error)})
     catch
-        _:R -> exit(R)
+        _:Error        -> exit(Error)
     end.
 
 -spec scan(string()) -> tokens().
 scan(Str) ->
-    try
-        case redbug_lexer:string(Str) of
-            {ok, Tokens, _}                    -> Tokens;
-            {error, {_, _, {illegal, Tok}}, _} -> exit({scan_error, "at: "++Tok})
-        end
+    try redbug_lexer:string(Str) of
+        {ok, Tokens, _}                    -> Tokens;
+        {error, {_, _, {illegal, Tok}}, _} -> exit({scan_error, "at: "++Tok})
     catch
-        _:{scan_error, Error}       -> exit({scan_error, Error});
-        _:{error, {_, _, Error}, _} -> exit({scan_error, Error});
-        _:R                         -> exit({scan_error, {bad_input, R}})
+        throw:{error, {_, _, Error}, _}          -> exit({scan_error, Error});
+        _:R                     -> exit({scan_error, {bad_input, R}})
     end.
 
 to_str(Atom) when is_atom(Atom)  -> atom_to_list(Atom);
